@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parsedle — guess whose parse it is</title>
+  <meta name="description" content="A daily guessing game: five guesses to name the raider behind today's Warcraft parse." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🟩</text></svg>" />
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="wordmark">Parsedle</h1>
+    <p class="tagline">Five guesses. One parse. Same one for everybody.</p>
+    <p class="puzzle-no" id="puzzle-no"></p>
+  </header>
+
+  <main>
+    <section class="card parse-card" aria-labelledby="parse-card-title">
+      <h2 id="parse-card-title" class="section-title">Today&rsquo;s parse</h2>
+      <dl class="parse-stats" id="parse-stats"></dl>
+      <div class="hints" id="hints" role="list" aria-live="polite"></div>
+      <p class="hint-timer" id="hint-timer"></p>
+    </section>
+
+    <section class="card guess-card" aria-labelledby="guess-title">
+      <h2 id="guess-title" class="section-title">Your guess</h2>
+      <form id="guess-form" autocomplete="off">
+        <div class="combo">
+          <input
+            id="guess-input"
+            type="text"
+            name="guess"
+            placeholder="Name a raider…"
+            aria-label="Guess a raider"
+            aria-autocomplete="list"
+            aria-controls="suggestions"
+            aria-expanded="false"
+            role="combobox"
+          />
+          <button type="submit" id="guess-submit">Guess</button>
+        </div>
+        <ul class="suggestions" id="suggestions" role="listbox" aria-label="Matching raiders" hidden></ul>
+      </form>
+      <p class="guess-meta" id="guess-meta"></p>
+      <p class="message" id="message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card board-card" aria-labelledby="board-title">
+      <h2 id="board-title" class="section-title">Board</h2>
+      <div class="board-scroll">
+        <table class="board" id="board">
+          <thead><tr id="board-head"></tr></thead>
+          <tbody id="board-body"></tbody>
+        </table>
+      </div>
+      <p class="legend">
+        <span class="chip hit">Exact</span>
+        <span class="chip near">Close &mdash; same class, same raid, or a near number</span>
+        <span class="chip miss">Miss</span>
+        <span class="chip plain">&uarr; &darr; the answer is higher / lower</span>
+      </p>
+    </section>
+
+    <section class="card result-card" id="result" hidden aria-live="polite">
+      <h2 class="section-title" id="result-title"></h2>
+      <p id="result-detail"></p>
+      <pre class="share-grid" id="share-grid"></pre>
+      <div class="result-actions">
+        <button type="button" id="share-btn">Copy result</button>
+        <span class="next-puzzle" id="next-puzzle"></span>
+      </div>
+      <dl class="stats" id="stats"></dl>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Fictional raiders and parses. Point <code>src/data/parses.js</code> at real
+      Warcraft Logs data to play with your own guild&rsquo;s.
+    </p>
+  </footer>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

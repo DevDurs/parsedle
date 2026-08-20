@@ -1,0 +1,11 @@
+{
+  "name": "parsedle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A daily guessing game: five guesses to name the raider behind today's Warcraft parse.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "python3 -m http.server 8080"
+  }
+}
