@@ -106,7 +106,9 @@ function renderHeader() {
 function renderClue() {
   const { clue } = state.view;
   $('parse-stats').innerHTML = [
-    ['Output', formatAmount(clue.amount, clue.unit)],
+    // Naming both units in the label says "this is a rate, and it could be
+    // either" without saying which — the role hint is what settles that.
+    ['Output (DPS/HPS)', formatAmount(clue.amount, clue.unit)],
     ['Pull length', formatDuration(clue.durationSec)],
   ]
     .map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`)
