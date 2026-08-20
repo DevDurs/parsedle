@@ -7,6 +7,7 @@ import {
   ARMOR_BY_CLASS,
   HINT_INTERVAL_MS,
   formatAmount,
+  formatOutput,
   formatDuration,
   hintsFor,
   msUntilNextHint,
@@ -32,7 +33,17 @@ test('formatting reads the way a log does', () => {
   assert.equal(formatDuration(604), '10:04');
   assert.equal(formatDuration(59), '0:59');
   assert.equal(formatAmount(1842000, 'dps'), '1.84M DPS');
-  assert.equal(formatAmount(912000, 'healer'), '0.91M HPS');
+  assert.equal(formatAmount(912000, 'healer'), '912K HPS');
+});
+
+test('output is scaled the way a log reads it, never 0.06M', () => {
+  assert.equal(formatOutput(1_842_000), '1.84M');
+  assert.equal(formatOutput(1_000_000), '1.00M');
+  assert.equal(formatOutput(912_345), '912K');
+  assert.equal(formatOutput(60_000), '60K');
+  assert.equal(formatOutput(9_800), '9.8K');
+  assert.equal(formatOutput(940), '940');
+  assert.equal(formatOutput(0), '0');
 });
 
 test('the wipe count on the answer\u2019s boss is a hint, not a column', () => {

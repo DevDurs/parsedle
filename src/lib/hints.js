@@ -32,9 +32,20 @@ export function formatDuration(seconds) {
   return `${m}:${s}`;
 }
 
+/**
+ * Output, scaled the way a log reads it: millions above 1M, thousands below,
+ * and never `0.06M`.
+ */
+export function formatOutput(amount) {
+  const value = Number(amount) || 0;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 10_000) return `${Math.round(value / 1000)}K`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return `${Math.round(value)}`;
+}
+
 export function formatAmount(amount, role) {
-  const unit = role === 'healer' ? 'HPS' : 'DPS';
-  return `${(amount / 1_000_000).toFixed(2)}M ${unit}`;
+  return `${formatOutput(amount)} ${role === 'healer' ? 'HPS' : 'DPS'}`;
 }
 
 /**

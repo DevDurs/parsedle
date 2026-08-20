@@ -6,7 +6,7 @@
  * is over. This file renders that response and keeps the guess list.
  */
 
-import { formatDuration } from '/lib/hints.js';
+import { formatDuration, formatOutput } from '/lib/hints.js';
 import { shareGrid, shareText } from '/lib/share.js';
 import { loadStats, recordResult } from '/lib/storage.js';
 
@@ -90,7 +90,7 @@ function scheduleHintRefresh() {
 /* ----------------------------------------------------------------- render */
 
 function formatAmount(amount, unit) {
-  return `${(amount / 1_000_000).toFixed(2)}M${unit ? ` ${unit}` : ''}`;
+  return `${formatOutput(amount)}${unit ? ` ${unit}` : ''}`;
 }
 
 function renderHeader() {
@@ -145,8 +145,15 @@ function renderBoard() {
     })
     .join('');
 
+  // The sample pool is not a raid night, so it gets the plain wording.
+  const { raidSize, sample } = state.view;
+  const left = `${guessesLeft} guess${guessesLeft === 1 ? '' : 'es'} left`;
   $('guess-meta').textContent =
-    status === 'playing' ? `${guessesLeft} guess${guessesLeft === 1 ? '' : 'es'} left.` : 'Puzzle over — come back tomorrow.';
+    status !== 'playing'
+      ? 'Puzzle over — come back tomorrow.'
+      : sample
+        ? `${left}.`
+        : `${left} — from the ${raidSize} raiders who were there that night.`;
 }
 
 function renderResult() {

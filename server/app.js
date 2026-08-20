@@ -11,7 +11,7 @@ import { stat } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 
-import { buildPuzzleView, rosterOf } from './puzzle.js';
+import { buildPuzzleView } from './puzzle.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -124,7 +124,7 @@ export function createApp({ store, pools, roster = null, adminToken = '', static
   async function handlePuzzle(req, res, session) {
     const { pool, sources, sample, warnings } = await pools.getPool();
     const view = buildPuzzleView(pool, { ...session, now: now() });
-    sendJson(res, 200, { ...view, roster: rosterOf(pool), sources, sample, warnings });
+    sendJson(res, 200, { ...view, sources, sample, warnings });
   }
 
   return async function handler(req, res) {

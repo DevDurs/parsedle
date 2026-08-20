@@ -58,37 +58,57 @@ body {
   padding: 0 1rem 3rem;
   color: var(--text);
   font: 16px/1.55 var(--sans);
-  background:
-    /* Sunlight breaking over the wall, and mist pooling at the bottom. */
-    radial-gradient(1100px 520px at 50% -240px, rgba(76, 199, 154, 0.16), transparent 70%),
-    radial-gradient(900px 420px at 12% 8%, rgba(217, 179, 96, 0.07), transparent 65%),
-    radial-gradient(1200px 700px at 88% 110%, rgba(43, 143, 107, 0.12), transparent 70%),
-    linear-gradient(180deg, var(--ink-2), var(--ink) 60%);
-  background-attachment: fixed;
+  background: var(--ink);
   min-height: 100vh;
 }
 
-/* A cloud bank drifting behind everything, faint enough to read through. */
-body::before {
+/*
+ * The sky is its own fixed layer rather than a background on <body>.
+ * `background-attachment: fixed` is what mobile browsers quietly refuse to
+ * honour — they paint it once at viewport height and leave flat ink above and
+ * below, which reads as a cropped background. A fixed, full-inset element is
+ * handled the same everywhere.
+ */
+body::before,
+body::after {
   content: "";
   position: fixed;
-  inset: -20% -10% auto -10%;
-  height: 60vh;
-  background-image: var(--clouds);
-  background-size: 480px 160px;
-  opacity: 0.07;
+  inset: 0;
   pointer-events: none;
   z-index: 0;
+}
+
+/* Sunlight breaking over the wall, and mist pooling in the valley. */
+body::before {
+  background:
+    radial-gradient(1100px 520px at 50% -12%, rgba(76, 199, 154, 0.16), transparent 70%),
+    radial-gradient(900px 420px at 12% 8%, rgba(217, 179, 96, 0.07), transparent 65%),
+    radial-gradient(1200px 700px at 88% 108%, rgba(43, 143, 107, 0.13), transparent 70%),
+    linear-gradient(180deg, var(--ink-2), var(--ink) 55%, #0a1310);
+}
+
+/* A cloud bank drifting across it, faint enough to read through. */
+body::after {
+  background-image: var(--clouds);
+  background-size: 480px 160px;
+  background-repeat: repeat-x;
+  background-position: 0 8vh;
+  opacity: 0.07;
   animation: drift 90s linear infinite;
 }
 
 @keyframes drift {
+  from { background-position: 0 8vh; }
+  to { background-position: 960px 8vh; }
+}
+
+@keyframes drift-panel {
   from { background-position: 0 0; }
-  to { background-position: 960px 0; }
+  to { background-position: 240px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body::before { animation: none; }
+  body::after, .hint.locked::after { animation: none; }
 }
 
 main, .topbar, footer { position: relative; z-index: 1; }
@@ -225,11 +245,7 @@ main { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: m
   background-image: var(--clouds);
   background-size: 240px 80px;
   opacity: 0.22;
-  animation: drift 40s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hint.locked::after { animation: none; }
+  animation: drift-panel 40s linear infinite;
 }
 
 .hint-timer { margin: 0.85rem 0 0; color: var(--muted); font-size: 0.85rem; font-style: italic; }

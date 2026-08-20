@@ -41,7 +41,8 @@ docker compose exec parsedle node server/cli.js add https://www.warcraftlogs.com
 You open with almost nothing: the output, the pull length, and the raid. Then
 two clocks race each other.
 
-- **Guesses.** Each guess is a raider from the pool, scored column by column
+- **Guesses.** Each guess is a raider who was in that raid — someone who sat
+  the night out is not on the list — scored column by column
   against the answer — 🟩 exact, 🟨 close, ⬛ miss, with ↑/↓ on the numbers
   showing which way the answer sits. "Close" is the right class with the wrong
   spec, the right raid with the wrong boss, or a number within 8 percentile /
@@ -96,7 +97,9 @@ same report twice is a no-op.
 
 Everyone who is not on the guild roster is dropped first (see below). Each
 remaining raider is then reduced to **one row: their best parse across the
-sampled nights**. That keeps names unique — a name has to identify exactly one
+sampled nights**, carrying the list of nights they were ranked in — that is
+what narrows the guess list to the raid the answer came from, even when
+somebody's best parse was the other night. That keeps names unique — a name has to identify exactly one
 row — and "your best parse of the week" is the row worth arguing about anyway.
 Only ranked kills carry a percentile, so wipes never become answers, but the
 wipe count for the answer's boss shows up as a hint.
@@ -192,7 +195,7 @@ A pool of 20-30 raiders is a good game; the fallback kicks in below 6.
 ## Development
 
 ```sh
-npm test                 # 116 assertions, no network
+npm test                 # 121 assertions, no network
 npm start                # serve on :8080 with whatever is in the environment
 node server/cli.js check # what would today's pool be?
 ```

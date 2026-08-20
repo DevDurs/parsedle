@@ -122,10 +122,20 @@ export function parsesFromReport(report) {
  * The game needs player names to be unique — a name has to identify exactly
  * one row — and "your best parse of the week" is the row worth guessing about
  * anyway. Ties break on raw output, then on the row id so the pool is stable.
+ *
+ * Each row also carries `reports`: every report the player was ranked in, not
+ * just the one their best parse came from. That is what lets the guess list be
+ * narrowed to the raid the answer actually happened in — somebody's best parse
+ * can be from Tuesday while they also raided on Wednesday.
  */
 export function bestParsePerPlayer(rows) {
   const best = new Map();
+  const appearances = new Map();
   for (const row of rows) {
+    if (row.reportCode) {
+      if (!appearances.has(row.player)) appearances.set(row.player, new Set());
+      appearances.get(row.player).add(row.reportCode);
+    }
     const held = best.get(row.player);
     if (!held || row.percentile > held.percentile) {
       best.set(row.player, row);
@@ -137,7 +147,12 @@ export function bestParsePerPlayer(rows) {
       }
     }
   }
-  return [...best.values()].sort((a, b) => a.player.localeCompare(b.player));
+  return [...best.values()]
+    .map((row) => {
+      const seen = appearances.get(row.player);
+      return seen ? { ...row, reports: [...seen].sort() } : row;
+    })
+    .sort((a, b) => a.player.localeCompare(b.player));
 }
 
 /** Rows a parse must have to be playable at all. */

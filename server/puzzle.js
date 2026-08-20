@@ -28,8 +28,13 @@ export function clampElapsed(startedAt, now) {
 export function buildPuzzleView(pool, { guessIds = [], startedAt = null, now = Date.now(), date } = {}) {
   const when = date ?? new Date(now);
   const answer = pickDaily(pool, when);
-  const fields = activeFields(pool);
-  const byId = new Map(pool.map((p) => [p.id, p]));
+
+  // You are guessing who put up a parse on one particular night, so only the
+  // raiders who were actually there are guessable. Someone who sat out that
+  // night is not a fair guess, and burning a guess on them is not a puzzle.
+  const candidates = raidersFrom(pool, answer);
+  const fields = activeFields(candidates);
+  const byId = new Map(candidates.map((p) => [p.id, p]));
 
   // Unknown ids are dropped rather than rejected: a stale localStorage from
   // before the pool was rebuilt should not brick someone's board.
@@ -45,7 +50,7 @@ export function buildPuzzleView(pool, { guessIds = [], startedAt = null, now = D
   const status = gameStatus(guesses);
   const finished = status.status !== 'playing';
   const elapsedMs = clampElapsed(startedAt, now);
-  const allHints = hintsFor(answer, pool);
+  const allHints = hintsFor(answer, candidates);
   const hintOpts = { guessesMade: guesses.length, elapsedMs, total: allHints.length };
   const open = finished ? allHints.length : unlockedHintCount(hintOpts);
   const roleOpen = allHints.findIndex((h) => h.id === 'role') < open;
@@ -56,6 +61,8 @@ export function buildPuzzleView(pool, { guessIds = [], startedAt = null, now = D
     msUntilNextPuzzle: msUntilNextPuzzle(when),
     maxGuesses: MAX_GUESSES,
     fields,
+    roster: rosterOf(candidates),
+    raidSize: candidates.length,
     // The prompt itself. The unit stays hidden until the role hint opens,
     // because "HPS" would give the role away for free.
     clue: {
@@ -91,4 +98,17 @@ export function publicParse(parse) {
 /** Names only — the board fills in the details as they are guessed. */
 export function rosterOf(pool) {
   return pool.map((p) => ({ id: p.id, player: p.player })).sort((a, b) => a.player.localeCompare(b.player));
+}
+
+/**
+ * Everyone who raided the same night as `answer`.
+ *
+ * Rows know every report they were ranked in, so a raider counts as present
+ * even when their best parse came from the other night. Pools without report
+ * data — the bundled sample — are returned whole.
+ */
+export function raidersFrom(pool, answer) {
+  const night = answer.reportCode;
+  if (!night) return pool;
+  return pool.filter((p) => (p.reports ?? [p.reportCode]).includes(night));
 }
