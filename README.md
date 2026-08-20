@@ -46,9 +46,12 @@ two clocks race each other.
   showing which way the answer sits. "Close" is the right class with the wrong
   spec, the right raid with the wrong boss, or a number within 8 percentile /
   6 item levels.
-- **Time.** A hint opens every three minutes whether you guess or not: role,
-  armor type, difficulty, how many times the raid wiped on that boss, the
-  percentile bracket, and so on down to the guild's initial.
+- **Time.** A hint opens every three minutes whether you guess or not, in
+  rising order of how much it gives away: the percentile bracket, then armor
+  type, then role, then difficulty and how many times the raid wiped on that
+  boss. The raid itself is free from the start — it frames the puzzle without
+  narrowing it. Role is deliberately late, and the DPS/HPS label on the output
+  is withheld until it opens, or a healer would be obvious on sight.
 
 Guessing pulls the next hint forward immediately, so there is a real choice —
 spend a guess to learn faster, or let the clock feed you. Five guesses, then
@@ -189,7 +192,7 @@ A pool of 20-30 raiders is a good game; the fallback kicks in below 6.
 ## Development
 
 ```sh
-npm test                 # 115 assertions, no network
+npm test                 # 116 assertions, no network
 npm start                # serve on :8080 with whatever is in the environment
 node server/cli.js check # what would today's pool be?
 ```

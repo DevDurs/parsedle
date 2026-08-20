@@ -22,8 +22,28 @@ test('a fresh view gives the clue and nothing else', () => {
 });
 
 test('the output unit stays hidden until the role hint opens', () => {
-  assert.equal(view().clue.unit, null, 'HPS would give away a healer');
-  assert.equal(view({ guessIds: [other.id] }).clue.unit, answer.role === 'healer' ? 'HPS' : 'DPS');
+  const wrong = PARSES.filter((p) => p.id !== answer.id).map((p) => p.id);
+  assert.equal(view().clue.unit, null, 'HPS would give away a healer on sight');
+  assert.equal(view({ guessIds: wrong.slice(0, 2) }).clue.unit, null, 'still hidden two guesses in');
+  assert.equal(
+    view({ guessIds: wrong.slice(0, 3) }).clue.unit,
+    answer.role === 'healer' ? 'HPS' : 'DPS',
+    'it appears with the role hint, not before',
+  );
+});
+
+test('role is late in the ladder; percentile and armor come first', () => {
+  const ids = view().hints.map((h) => h.id);
+  assert.deepEqual(ids.slice(0, 4), ['raid', 'percentile', 'armor', 'role']);
+
+  const opened = (guesses) =>
+    view({ guessIds: PARSES.filter((p) => p.id !== answer.id).slice(0, guesses).map((p) => p.id) })
+      .hints.filter((h) => !h.locked)
+      .map((h) => h.id);
+  assert.deepEqual(opened(0), ['raid'], 'the raid frames the puzzle and gives nothing away');
+  assert.deepEqual(opened(1), ['raid', 'percentile']);
+  assert.deepEqual(opened(2), ['raid', 'percentile', 'armor']);
+  assert.ok(opened(3).includes('role'), 'role arrives on the third guess, not the first');
 });
 
 test('locked hints are masked server-side, so the payload cannot be read ahead', () => {

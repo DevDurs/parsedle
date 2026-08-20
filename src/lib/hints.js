@@ -41,10 +41,16 @@ export function formatAmount(amount, role) {
  * Every hint for a parse, weakest first. Index 0 is free; index n opens after
  * n guesses or n intervals.
  *
+ * The order is the difficulty curve, so it is deliberate. Percentile narrows
+ * the field without naming anyone; armor type cuts thirteen classes to four;
+ * role is the one that collapses the pool, so it comes late — and the DPS/HPS
+ * label on the clue is withheld until it opens, or the role would leak on
+ * sight.
+ *
  * Pass the pool and hints that would be the same for every possible answer are
  * dropped: one guild's raiders share a region, and a hint that rules nothing
  * out is just a row of noise. The raid always opens the puzzle, constant or
- * not, because it frames what you are looking at.
+ * not, because it frames what you are looking at rather than who.
  *
  * @param {object} parse
  * @param {object[]} [pool] the full answer pool, when it is known
@@ -53,8 +59,9 @@ export function formatAmount(amount, role) {
 export function hintsFor(parse, pool) {
   const all = [
     { id: 'raid', label: 'Raid', value: parse.raid, field: 'raid' },
-    { id: 'role', label: 'Role', value: ROLE_LABELS[parse.role] ?? parse.role, field: 'role' },
+    { id: 'percentile', label: 'Parse percentile', value: percentileBracket(parse.percentile), field: 'percentile' },
     { id: 'armor', label: 'Armor type', value: ARMOR_BY_CLASS[parse.class] ?? 'Unknown', field: 'class' },
+    { id: 'role', label: 'Role', value: ROLE_LABELS[parse.role] ?? parse.role, field: 'role' },
     { id: 'difficulty', label: 'Difficulty', value: parse.difficulty, field: 'difficulty' },
     {
       id: 'wipes',
@@ -63,7 +70,6 @@ export function hintsFor(parse, pool) {
       field: 'wipes',
       skip: typeof parse.wipes !== 'number',
     },
-    { id: 'percentile', label: 'Parse percentile', value: percentileBracket(parse.percentile), field: 'percentile' },
     { id: 'region', label: 'Region', value: parse.region, field: 'region' },
   ];
 
