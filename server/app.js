@@ -79,6 +79,7 @@ export function createApp({
   results = null,
   announcer = null,
   secureCookies = true,
+  activity = { clientId: '' },
   now = Date.now,
 }) {
   const root = resolve(staticRoot);
@@ -113,11 +114,18 @@ export function createApp({
     try {
       const info = await stat(target);
       if (!info.isFile()) throw Object.assign(new Error('not a file'), { code: 'ENOENT' });
-      res.writeHead(200, {
+      const headers = {
         'Content-Type': MIME[extname(target)] ?? 'application/octet-stream',
         'Content-Length': info.size,
         'Cache-Control': 'no-cache',
-      });
+      };
+      // Discord runs the Activity in an iframe on its own domains; everyone
+      // else is refused, which is also what stops the game being clickjacked.
+      if (extname(target) === '.html') {
+        headers['Content-Security-Policy'] =
+          "frame-ancestors https://discord.com https://*.discord.com https://*.discordsays.com";
+      }
+      res.writeHead(200, headers);
       createReadStream(target).pipe(res);
     } catch {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }).end('Not found');
@@ -332,7 +340,12 @@ export function createApp({
 
       if (pathname === '/api/me' && req.method === 'GET') {
         const player = playerOf(req);
-        sendJson(res, 200, { player: player ? { id: player.id, username: player.username } : null, loginRequired: Boolean(sessions) });
+        sendJson(res, 200, {
+          player: player ? { id: player.id, username: player.username } : null,
+          loginRequired: Boolean(sessions),
+          // Public by nature — the Activity needs it to construct the SDK.
+          discordClientId: activity.clientId ?? '',
+        });
         return;
       }
 

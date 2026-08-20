@@ -18,6 +18,20 @@ services:
       GUILD_ID: ${GUILD_ID:-}
       # Guards /api/reports and /api/roster. Unset means the admin API stays disabled.
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      # Discord. Login needs the client pair plus SESSION_SECRET; posting needs
+      # the bot token plus a channel. Leave them empty and the game plays
+      # anonymously and says nothing.
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      DISCORD_REQUIRE_GUILD_MEMBER: ${DISCORD_REQUIRE_GUILD_MEMBER:-}
+      DISCORD_DIGEST_HOUR: ${DISCORD_DIGEST_HOUR:-10}
+      DISCORD_DIGEST_GRIDS: ${DISCORD_DIGEST_GRIDS:-}
+      DISCORD_STREAK_MIN_PLAYERS: ${DISCORD_STREAK_MIN_PLAYERS:-1}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
       DATA_DIR: /data
     volumes:
       - parsedle-data:/data

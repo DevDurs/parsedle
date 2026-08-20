@@ -385,7 +385,11 @@ test('the Activity trades its code for a token and a session', async (t) => {
 
 test('/api/me reports who is signed in', async (t) => {
   const app = await startWithDiscord(t);
-  assert.deepEqual(await (await app.get('/api/me')).json(), { player: null, loginRequired: true });
+  assert.deepEqual(await (await app.get('/api/me')).json(), {
+    player: null,
+    loginRequired: true,
+    discordClientId: '',
+  });
   const mine = await (await app.get('/api/me', { authorization: `Bearer ${app.token}` })).json();
   assert.equal(mine.player.username, 'durs');
 });
@@ -396,4 +400,23 @@ test('without Discord configured the game stays open and anonymous', async (t) =
   assert.equal(body.loginRequired, false);
   assert.equal(body.player, null);
   assert.equal((await app.get('/auth/discord')).status, 503);
+});
+
+test('html is framable by Discord and nobody else', async (t) => {
+  const app = await startServer(t);
+  const page = await app.get('/');
+  const csp = page.headers.get('content-security-policy');
+  assert.match(csp, /frame-ancestors/);
+  assert.match(csp, /https:\/\/\*\.discordsays\.com/);
+  assert.ok(!csp.includes("'self' *"), 'not an open invitation');
+
+  const css = await app.get('/assets/styles.css');
+  assert.equal(css.headers.get('content-security-policy'), null, 'only the pages need it');
+});
+
+test('the Activity bundle is served', async (t) => {
+  const app = await startServer(t);
+  const res = await app.get('/vendor/embedded-app-sdk.js');
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /javascript/);
 });

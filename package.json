@@ -6,11 +6,19 @@
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
+    "build": "node build.mjs",
     "test": "node --test",
     "reports": "node server/cli.js",
-    "check": "node server/cli.js check"
+    "check": "node server/cli.js check",
+    "digest": "node server/cli.js digest --dry-run"
   },
   "engines": {
     "node": ">=22"
+  },
+  "dependencies": {
+    "@discord/embedded-app-sdk": "^2.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

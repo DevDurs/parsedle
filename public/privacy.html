@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parsedle — Privacy</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🐼</text></svg>" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="wordmark">Parsedle</h1>
+    <p class="tagline">Privacy</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2 class="section-title">What is stored</h2>
+      <p>Parsedle is a daily guessing game run by and for one World of Warcraft guild. It stores as little as it can:</p>
+      <ul>
+        <li><strong>Your Discord user id, display name and avatar hash</strong>, from the <code>identify</code> scope, so the game knows whose scores are whose and can name you in the daily results post.</li>
+        <li><strong>What you guessed and when</strong>, per puzzle: the raiders you named, whether you solved it, and the times you started and finished.</li>
+        <li><strong>Public Warcraft Logs data</strong> for the guild's own raid reports — character names, specs, boss kills and parse percentiles — which is what the puzzles are made of.</li>
+      </ul>
+      <p>Nothing else. No email address, no message content, no browsing history, no analytics, no advertising identifiers, no tracking pixels, and no cookies beyond the one that keeps you signed in.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Who can see it</h2>
+      <p>Your results are posted into the guild's own Discord channel — the score you got, and your name next to it. That is the point of the game, and it is the only place results are published.</p>
+      <p>Nothing is sold, shared with advertisers, or passed to any third party. The only outside services involved are Discord itself (to sign you in and to post the results) and Warcraft Logs (to read the guild's public raid reports).</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Where it lives, and for how long</h2>
+      <p>Everything is kept in plain JSON files on the guild's own server. Results are kept so the group streak can be counted; there is no automatic expiry.</p>
+      <p>Ask an admin and your account and results will be deleted. Signing out removes the cookie from your browser; deleting your data removes it from the server.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Contact</h2>
+      <p>Parsedle is operated by the guild that runs this server. Reach the admins in the Discord server where you found the game.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p><a href="/">Back to the game</a> · <a href="/terms.html">Terms</a></p>
+  </footer>
+</body>
+</html>

@@ -109,6 +109,88 @@ that is always green teaches nothing. There is no guild column at all — only
 LuckyDo raiders are ever in the pool, so it would say the same thing on every
 line.
 
+## Discord
+
+Parsedle can run as a Discord app: people sign in with Discord, the bot says
+who is playing, and each morning it posts yesterday's scoreboard with the
+group streak.
+
+```
+10:02  Parsedle — durs and CMRN are playing Parsedle #232   [Play now!]
+
+10:00  **Your group is on a 4 day streak!** 🔥 Here are yesterday's results:
+       👑 2/5: @Tusdar
+       3/5: @phuzzy @durs
+       X/5: @Arjunis
+       It was **Thalvira** — Shadow Priest, 99 on Mythic Dimensius.
+```
+
+The "playing" line is **one message per day that gets edited** as people join,
+so the channel gets a single notification rather than one per raider.
+
+### Setting it up
+
+1. Create an app at <https://discord.com/developers/applications>.
+2. **OAuth2 → Redirects**: add `<PUBLIC_URL>/auth/discord/callback`. Copy the
+   client id and secret into `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET`.
+3. **Bot**: add a bot, copy its token into `DISCORD_BOT_TOKEN`, and invite it
+   with permission to send messages in the channel named by
+   `DISCORD_CHANNEL_ID` (right-click the channel → Copy Channel ID, with
+   Developer Mode on).
+4. `SESSION_SECRET=$(openssl rand -hex 32)` — this signs the login cookie.
+   Changing it signs everybody out.
+
+Each half is independent and degrades on its own: the client pair plus
+`SESSION_SECRET` turn on login, the bot token plus a channel turn on posting.
+With none of it set the game plays anonymously and says nothing, which is what
+a bare `docker compose up` does.
+
+Signing in is **required to play once login is configured** — results have to
+belong to somebody. Set `DISCORD_REQUIRE_GUILD_MEMBER=1` (with
+`DISCORD_GUILD_ID`) to refuse logins from outside the server too.
+
+### Where the state lives
+
+Rounds are stored server-side, not in the browser: clearing localStorage no
+longer undoes a loss, and a finished round cannot be extended. `data/` gains
+`users.json` (id, display name, avatar) and `results.json` (per day, per
+player: guesses, win, timestamps), plus `discord.json` for which message the
+bot is editing and which morning it has already posted.
+
+```sh
+node server/cli.js digest --dry-run        # print yesterday's post, send nothing
+node server/cli.js digest --now            # post it, even if today's already went
+node server/cli.js results [2026-08-19]    # who played and what they scored
+```
+
+The digest fires at `DISCORD_DIGEST_HOUR` UTC and catches up on boot if the
+container was down at the time — without posting twice.
+
+### The Activity
+
+Parsedle also runs as a Discord Activity, in an iframe inside Discord itself.
+In the dev portal: enable **Activities**, and under **URL Mappings** point the
+root at your public host. Discord then serves the game from
+`https://<app_id>.discordsays.com`, proxying every request.
+
+The page detects Discord by the `frame_id` query parameter and swaps its login
+for the SDK handshake — `ready()`, `authorize()`, `POST /api/activity/token`,
+`authenticate()` — carrying the session in a bearer header rather than a
+cookie, since a page framed by another origin should not depend on cookie
+policy it does not control. If the handshake does not answer within ten
+seconds it says so and offers a link out to the browser, rather than sitting
+on a blank page.
+
+**An unverified Activity is playable only by people you add as app testers,
+and only in servers with fewer than 25 members.** Lifting that needs
+verification, which is why `/privacy.html` and `/terms.html` exist — the dev
+portal wants both URLs. Until it clears, the bot half already works for
+everyone.
+
+The SDK is the project's only dependency, and `build.mjs` bundles it into
+`public/vendor/` — the one build step. The Dockerfile runs it in a build stage,
+so the shipped image still carries no `node_modules`.
+
 ## Only our raiders
 
 A pug who filled a spot on Tuesday is not a fair thing to ask people to name,
@@ -152,8 +234,17 @@ quickest way out of that state — seed from a real report and then
 | `GUILD_SERVER` / `GUILD_REGION` | — | Realm slug and region, e.g. `draenor` / `EU`. Needed to read the roster |
 | `GUILD_ID` | — | Use instead of name + server + region, if you know it |
 | `ADMIN_TOKEN` | — | Guards the report list and the roster. Unset disables the admin API |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | — | The Discord app. With `SESSION_SECRET`, turns on login |
+| `SESSION_SECRET` | — | Signs session cookies. Changing it signs everybody out |
+| `DISCORD_BOT_TOKEN` / `DISCORD_CHANNEL_ID` | — | Together, turn on posting |
+| `DISCORD_GUILD_ID` / `DISCORD_REQUIRE_GUILD_MEMBER` | — | Refuse logins from outside the server |
+| `DISCORD_DIGEST_HOUR` | `10` | When yesterday's scoreboard goes out, UTC |
+| `DISCORD_DIGEST_GRIDS` | — | `1` to attach each player's emoji grid |
+| `DISCORD_STREAK_MIN_PLAYERS` | `1` | How many must finish for a day to keep the streak |
+| `PUBLIC_URL` | — | Where the game lives; the OAuth redirect and Play now! button |
+| `INSECURE_COOKIES` | — | `1` for plain-http localhost only |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
-| `DATA_DIR` | `./data` | Where `reports.json` and `roster.json` live — mount this |
+| `DATA_DIR` | `./data` | Where every JSON store lives — mount this |
 | `STATIC_ROOT` | `./public` | The served page |
 
 Without credentials, before the first report is added, or with no roster to
@@ -172,6 +263,10 @@ minutes and the built pool is cached until the list changes.
 | `server/transform.js` | Report JSON → parse rows (pure, heavily tested) |
 | `server/store.js` | The report list, one JSON file |
 | `server/roster.js` | Who counts as a guild member |
+| `server/identity.js` / `server/sessions.js` | Discord login, and sessions with no session table |
+| `server/results.js` | Stored rounds, the scoreboard and the group streak |
+| `server/discord.js` / `server/digest.js` | Posting, and what gets said |
+| `public/activity.js` | The Discord Activity bootstrap |
 | `server/pool.js` | Newest two reports → the answer pool, cached |
 | `server/puzzle.js` | What a player is allowed to see |
 | `server/app.js` | Routes and static serving, no framework |
@@ -180,8 +275,9 @@ minutes and the built pool is cached until the list changes.
 | `public/` | The page, the admin form, the stylesheet |
 | `test/` | `node --test` suites over all of the above |
 
-Zero dependencies, so `npm install` has nothing to do and the image is Node
-plus this source.
+One dependency — the Discord Embedded App SDK, needed only by the Activity and
+bundled at build time. The server itself has none, and the shipped image
+carries no `node_modules`.
 
 ## Picking the daily parse
 
@@ -195,7 +291,7 @@ A pool of 20-30 raiders is a good game; the fallback kicks in below 6.
 ## Development
 
 ```sh
-npm test                 # 121 assertions, no network
+npm test                 # 189 assertions, no network
 npm start                # serve on :8080 with whatever is in the environment
 node server/cli.js check # what would today's pool be?
 ```
