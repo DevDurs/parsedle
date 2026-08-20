@@ -1,0 +1,21 @@
+name: parsedle
+
+services:
+  parsedle:
+    build: .
+    image: parsedle
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      # Warcraft Logs client credentials — https://www.warcraftlogs.com/api/clients/
+      WCL_CLIENT_ID: ${WCL_CLIENT_ID:-}
+      WCL_CLIENT_SECRET: ${WCL_CLIENT_SECRET:-}
+      # Guards /api/reports. Unset means the admin API stays disabled.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      DATA_DIR: /data
+    volumes:
+      - parsedle-data:/data
+
+volumes:
+  parsedle-data:

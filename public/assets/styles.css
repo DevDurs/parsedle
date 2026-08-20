@@ -180,3 +180,17 @@ code { background: var(--panel-2); padding: 0.1rem 0.35rem; border-radius: 5px; 
   .wordmark { font-size: 2rem; }
   .parse-stats dd { font-size: 1.25rem; }
 }
+
+/* --- server-side notices --- */
+.notice {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  background: #2a2413;
+  border: 1px solid #5c4a17;
+  border-radius: var(--radius);
+  color: #f0dfae;
+  font-size: 0.9rem;
+}
+
+footer a { color: var(--accent); }
+#reports-body button { padding: 0.35rem 0.7rem; font-size: 0.8rem; background: var(--panel-2); color: var(--text); }

@@ -2,10 +2,15 @@
   "name": "parsedle",
   "version": "0.1.0",
   "private": true,
-  "description": "A daily guessing game: five guesses to name the raider behind today's Warcraft parse.",
+  "description": "A daily guessing game over your guild's Warcraft Logs parses.",
   "type": "module",
   "scripts": {
+    "start": "node server/index.js",
     "test": "node --test",
-    "start": "python3 -m http.server 8080"
+    "reports": "node server/cli.js",
+    "check": "node server/cli.js check"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

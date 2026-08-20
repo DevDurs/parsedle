@@ -1,82 +1,137 @@
 # Parsedle
 
-A daily guessing game in the Wordle / LoLdle mould: you get one Warcraft raid
-parse and five guesses to name the raider who put it up. Everyone in the world
-plays the same parse on the same day.
+A daily guessing game over your guild's own Warcraft Logs: one parse from the
+last two raid nights, five guesses to name the raider who put it up. Everybody
+gets the same parse on the same UTC day.
 
-```
-npm test        # logic tests, no dependencies
-npm start       # serves the static site on http://localhost:8080
+```sh
+cp .env.example .env          # WCL credentials + an admin token
+docker compose up -d --build  # http://localhost:8080
 ```
 
-No build step, no backend, no dependencies — it is an ES-module static site.
+Then add a log — every week, one URL:
+
+```sh
+docker compose exec parsedle node server/cli.js add https://www.warcraftlogs.com/reports/<code> "Week 12"
+```
+
+…or paste it into `/admin.html`, which does the same thing through the API.
 
 ## How a round plays
 
-You start with almost nothing: the output (DPS or HPS), the pull length, and
-the raid it came from. Then two clocks run against each other:
+You open with almost nothing: the output, the pull length, and the raid. Then
+two clocks race each other.
 
-- **Guesses.** Each guess is a raider from the pool. The board scores it column
-  by column against the answer — 🟩 exact, 🟨 close, ⬛ miss, with ↑/↓ on the
-  numbers telling you which way the answer sits. "Close" means the right class
-  with the wrong spec, the right raid with the wrong boss, or a number within
-  8 percentile / 6 item levels.
-- **Time.** A new hint about the answer opens every three minutes whether you
-  guess or not — role, then armor type, difficulty, percentile bracket, region,
-  and finally the guild's initial and length.
+- **Guesses.** Each guess is a raider from the pool, scored column by column
+  against the answer — 🟩 exact, 🟨 close, ⬛ miss, with ↑/↓ on the numbers
+  showing which way the answer sits. "Close" is the right class with the wrong
+  spec, the right raid with the wrong boss, or a number within 8 percentile /
+  6 item levels.
+- **Time.** A hint opens every three minutes whether you guess or not: role,
+  armor type, difficulty, how many times the raid wiped on that boss, the
+  percentile bracket, and so on down to the guild's initial.
 
-Guessing pulls the next hint forward immediately, so there is a real choice:
-burn a guess to learn faster, or sit on the puzzle and let it come to you. Five
-guesses, then the answer reveals itself and you get an emoji grid to paste into
-guild chat.
+Guessing pulls the next hint forward immediately, so there is a real choice —
+spend a guess to learn faster, or let the clock feed you. Five guesses, then
+the answer reveals itself with a link to the pull in the log, and you get an
+emoji grid to paste into guild chat.
+
+The answer stays on the server. The browser is sent the roster, the clue and
+whatever hints it has earned; guesses are scored server-side and the answer
+only appears in a response once the round is over.
+
+## The weekly upload
+
+The report list is the only state the game has. Puzzles are always drawn from
+the **newest two reports** on it — each report contributes every boss the raid
+killed that night, and the wipes ride along as a hint.
+
+```sh
+node server/cli.js add <url> ["label"]   # add this week's log
+node server/cli.js list                  # newest first; * marks the two in play
+node server/cli.js remove <code>         # take one off the list
+node server/cli.js check                 # fetch and print the pool as it stands
+```
+
+The same operations are on the HTTP API, guarded by `ADMIN_TOKEN`:
+
+| Method | Path | Body |
+| --- | --- | --- |
+| `POST` | `/api/reports` | `{"url": "…", "label": "…"}` |
+| `GET` | `/api/reports` | — |
+| `DELETE` | `/api/reports/:code` | — |
+
+Send the token as `x-admin-token` (or `Authorization: Bearer …`). With
+`ADMIN_TOKEN` unset the admin API is disabled outright rather than left open —
+use the CLI in that case.
+
+A report URL, a permalink with `#fight=…`, or a bare code all work. Adding the
+same report twice is a no-op.
+
+### What a report becomes
+
+Each raider is reduced to **one row: their best parse across the sampled
+nights**. That keeps names unique — a name has to identify exactly one row —
+and "your best parse of the week" is the row worth arguing about anyway. Only
+ranked kills carry a percentile, so wipes never become answers, but the wipe
+count for the answer's boss shows up as a hint.
+
+Columns that never vary are dropped: playing on one guild's logs, every row
+shares a guild and a region, and a column that is always green teaches
+nothing.
+
+## Configuration
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` | — | Warcraft Logs v2 client, from <https://www.warcraftlogs.com/api/clients/> |
+| `ADMIN_TOKEN` | — | Guards the report list. Unset disables the admin API |
+| `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
+| `DATA_DIR` | `./data` | Where `reports.json` lives — mount this |
+| `STATIC_ROOT` | `./public` | The served page |
+
+Without credentials, or before the first report is added, the game serves a
+bundled sample pool of fictional raiders and says so on the page. That makes
+`docker compose up` playable before you have set anything up.
+
+Warcraft Logs is rate limited, so each report is fetched at most once every 30
+minutes and the built pool is cached until the list changes.
 
 ## Layout
 
 | Path | What lives there |
 | --- | --- |
-| `index.html`, `assets/styles.css` | The page and its styling |
-| `src/main.js` | Rendering and event wiring only |
-| `src/lib/daily.js` | Which parse is today's, and the countdown to the next |
-| `src/lib/compare.js` | Guess scoring — the 🟩/🟨/⬛ rules |
-| `src/lib/hints.js` | The hint ladder and its unlock schedule |
-| `src/lib/share.js` | The emoji grid, which never leaks the answer |
-| `src/lib/storage.js` | Mid-puzzle progress, streaks, distribution |
-| `src/data/parses.js` | The answer pool |
-| `test/` | `node --test` suites over every module above |
+| `server/wcl.js` | OAuth + GraphQL against the Warcraft Logs v2 API |
+| `server/transform.js` | Report JSON → parse rows (pure, heavily tested) |
+| `server/store.js` | The report list, one JSON file |
+| `server/pool.js` | Newest two reports → the answer pool, cached |
+| `server/puzzle.js` | What a player is allowed to see |
+| `server/app.js` | Routes and static serving, no framework |
+| `server/cli.js` | The report list from a shell |
+| `src/lib/` | Game rules shared by the server and the page |
+| `public/` | The page, the admin form, the stylesheet |
+| `test/` | `node --test` suites over all of the above |
 
-The rules all live in `src/lib` as pure functions, which is why they are
-testable without a browser; `src/main.js` never decides anything on its own.
+Zero dependencies, so `npm install` has nothing to do and the image is Node
+plus this source.
 
 ## Picking the daily parse
 
-`pickDaily` needs no server. The UTC day number indexes into a shuffle of the
-pool seeded by the cycle number, so:
+The UTC day number indexes a shuffle of the pool seeded by the cycle number,
+so everyone gets the same answer on the same day, nothing repeats until the
+whole pool is used, and each cycle reshuffles instead of replaying. Day 1 is
+`2026-01-01` (`EPOCH_UTC` in `src/lib/daily.js`).
 
-- everyone gets the same answer on the same UTC day,
-- no parse repeats until all of them have been used,
-- each new cycle reshuffles instead of replaying the same order.
+A pool of 20-30 raiders is a good game; the fallback kicks in below 6.
 
-Day 1 is `2026-01-01` (`EPOCH_UTC` in `src/lib/daily.js`) — move it if you want
-different puzzle numbering.
+## Development
 
-## Using real data
-
-The raiders and parses in `src/data/parses.js` are invented. To play with real
-logs, replace that file's export with rows in the same shape:
-
-```js
-{
-  id, player, class, spec, role,          // role: 'dps' | 'healer' | 'tank'
-  region, guild,
-  raid, boss, difficulty,                 // 'LFR' | 'Normal' | 'Heroic' | 'Mythic'
-  percentile, ilvl, amount, durationSec,
-}
+```sh
+npm test                 # 94 assertions, no network
+npm start                # serve on :8080 with whatever is in the environment
+node server/cli.js check # what would today's pool be?
 ```
 
-A Warcraft Logs v2 (GraphQL) rankings query fills every field directly. Two
-things the game assumes: `player` is unique across the pool (a name identifies
-one parse), and the pool is large enough that a cycle is not obviously
-memorisable — a few hundred rows makes for a much better game than forty.
-
-Keep the pool in a file the client can fetch, or swap the import for a `fetch`
-of your own endpoint. Nothing else in the game needs to change.
+The rules live in `src/lib` as pure functions, which is why they are testable
+without a browser or an API key. `server/app.js` decides nothing about the
+game; `public/app.js` only renders what the server sends.

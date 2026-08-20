@@ -1,0 +1,127 @@
+/**
+ * Warcraft Logs v2 client.
+ *
+ * Two hops: an OAuth2 client-credentials token, then GraphQL against
+ * /api/v2/client. One query per report gets us the fight list (kills and
+ * wipes alike) and the ranked parses for every kill.
+ *
+ * Create a client at https://www.warcraftlogs.com/api/clients/ and put the id
+ * and secret in WCL_CLIENT_ID / WCL_CLIENT_SECRET.
+ */
+
+const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
+const GRAPHQL_URL = 'https://www.warcraftlogs.com/api/v2/client';
+
+/** Refresh a little before the token actually lapses. */
+const TOKEN_SKEW_MS = 60_000;
+
+export const REPORT_QUERY = `
+query ParsedleReport($code: String!) {
+  reportData {
+    report(code: $code) {
+      code
+      title
+      startTime
+      endTime
+      zone { id name }
+      guild { name server { region { compactName } } }
+      fights(killType: Encounters) {
+        id
+        encounterID
+        name
+        difficulty
+        kill
+        startTime
+        endTime
+      }
+      rankings
+    }
+  }
+}`;
+
+export class WclError extends Error {
+  constructor(message, { status, details } = {}) {
+    super(message);
+    this.name = 'WclError';
+    this.status = status;
+    this.details = details;
+  }
+}
+
+/**
+ * @param {{clientId: string, clientSecret: string, fetchImpl?: typeof fetch, now?: () => number}} opts
+ */
+export function createWclClient({ clientId, clientSecret, fetchImpl = fetch, now = Date.now }) {
+  if (!clientId || !clientSecret) {
+    throw new WclError('Missing WCL_CLIENT_ID / WCL_CLIENT_SECRET');
+  }
+
+  let token = null;
+  let tokenExpiresAt = 0;
+  let inFlight = null;
+
+  async function requestToken() {
+    const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const res = await fetchImpl(TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
+    });
+    if (!res.ok) {
+      throw new WclError(`Warcraft Logs rejected the credentials (${res.status})`, { status: res.status });
+    }
+    const body = await res.json();
+    token = body.access_token;
+    tokenExpiresAt = now() + (body.expires_in ?? 3600) * 1000 - TOKEN_SKEW_MS;
+    return token;
+  }
+
+  /** Tokens last hours; only one refresh is ever in flight. */
+  async function accessToken() {
+    if (token && now() < tokenExpiresAt) return token;
+    inFlight ??= requestToken().finally(() => {
+      inFlight = null;
+    });
+    return inFlight;
+  }
+
+  async function graphql(query, variables) {
+    const res = await fetchImpl(GRAPHQL_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${await accessToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (res.status === 401) {
+      // The token went stale early; drop it so the next call re-authenticates.
+      token = null;
+      throw new WclError('Warcraft Logs returned 401', { status: 401 });
+    }
+    if (!res.ok) {
+      throw new WclError(`Warcraft Logs returned ${res.status}`, { status: res.status });
+    }
+
+    const body = await res.json();
+    if (body.errors?.length) {
+      throw new WclError(body.errors[0].message ?? 'GraphQL error', { details: body.errors });
+    }
+    return body.data;
+  }
+
+  return {
+    graphql,
+    /** @returns {Promise<object>} the raw `reportData.report` node */
+    async fetchReport(code) {
+      const data = await graphql(REPORT_QUERY, { code });
+      const report = data?.reportData?.report;
+      if (!report) throw new WclError(`No report found for code ${code}`, { status: 404 });
+      return report;
+    },
+  };
+}

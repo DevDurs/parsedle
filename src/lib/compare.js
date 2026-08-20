@@ -17,7 +17,7 @@ export const DIFFICULTY_ORDER = ['LFR', 'Normal', 'Heroic', 'Mythic'];
 /** Numeric fields count as `near` inside these windows. */
 export const NEAR_WINDOWS = { percentile: 8, ilvl: 6 };
 
-/** The columns shown on the board, in order. */
+/** Every column the board knows how to draw, in order. */
 export const FIELDS = [
   { key: 'class', label: 'Class' },
   { key: 'spec', label: 'Spec' },
@@ -29,6 +29,22 @@ export const FIELDS = [
   { key: 'percentile', label: 'Parse %' },
   { key: 'ilvl', label: 'Item level' },
 ];
+
+/**
+ * Columns worth showing for a given pool.
+ *
+ * A pool drawn from one guild's own logs has the same guild and region on
+ * every row, and a column that is always green teaches nothing. Anything with
+ * a single distinct value drops out; the identifying columns always stay.
+ *
+ * @param {object[]} pool
+ * @param {{key: string, label: string}[]} [fields]
+ */
+export function activeFields(pool, fields = FIELDS) {
+  const ALWAYS = new Set(['class', 'spec', 'boss', 'percentile']);
+  if (!pool || pool.length < 2) return fields;
+  return fields.filter(({ key }) => ALWAYS.has(key) || new Set(pool.map((p) => p[key])).size > 1);
+}
 
 function compareNumeric(guess, answer, window) {
   const delta = answer - guess;
@@ -77,12 +93,12 @@ export function compareField(key, guess, answer) {
 }
 
 /**
- * Score a whole guess.
+ * Score a whole guess against the answer, over the given board columns.
  * @returns {{parse: object, correct: boolean, fields: Record<string, object>}}
  */
-export function evaluateGuess(guess, answer) {
+export function evaluateGuess(guess, answer, boardFields = FIELDS) {
   const fields = {};
-  for (const { key } of FIELDS) fields[key] = compareField(key, guess, answer);
+  for (const { key } of boardFields) fields[key] = compareField(key, guess, answer);
   return { parse: guess, correct: guess.id === answer.id, fields };
 }
 

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Parsedle — reports</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="wordmark">Parsedle</h1>
+    <p class="tagline">The report list. Puzzles are drawn from the newest two.</p>
+  </header>
+
+  <main>
+    <section class="card" aria-labelledby="add-title">
+      <h2 class="section-title" id="add-title">Add this week&rsquo;s log</h2>
+      <form id="add-form" autocomplete="off">
+        <div class="combo">
+          <input id="token" type="password" placeholder="Admin token" aria-label="Admin token" />
+        </div>
+        <div class="combo" style="margin-top: 0.5rem">
+          <input id="url" type="text" placeholder="https://www.warcraftlogs.com/reports/…" aria-label="Report URL" />
+          <button type="submit">Add</button>
+        </div>
+        <div class="combo" style="margin-top: 0.5rem">
+          <input id="label" type="text" placeholder="Label (optional) — e.g. Week 12, Mythic night" aria-label="Label" />
+        </div>
+      </form>
+      <p class="message" id="message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="list-title">
+      <h2 class="section-title" id="list-title">Reports</h2>
+      <div class="board-scroll">
+        <table class="board" id="reports">
+          <thead>
+            <tr>
+              <th scope="col">Code</th><th scope="col">Raid night</th>
+              <th scope="col">Label</th><th scope="col">Sampled</th><th scope="col"></th>
+            </tr>
+          </thead>
+          <tbody id="reports-body"></tbody>
+        </table>
+      </div>
+      <p class="legend"><span class="chip plain">The token is kept in this tab only, never stored.</span></p>
+    </section>
+  </main>
+
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

@@ -41,23 +41,42 @@ export function formatAmount(amount, role) {
  * Every hint for a parse, weakest first. Index 0 is free; index n opens after
  * n guesses or n intervals.
  *
+ * Pass the pool and hints that would be the same for every possible answer are
+ * dropped: one guild's own logs share a guild and a region, and a hint that
+ * rules nothing out is just a row of noise. The raid always opens the puzzle,
+ * constant or not, because it frames what you are looking at.
+ *
  * @param {object} parse
+ * @param {object[]} [pool] the full answer pool, when it is known
  * @returns {{id: string, label: string, value: string}[]}
  */
-export function hintsFor(parse) {
-  return [
-    { id: 'raid', label: 'Raid', value: parse.raid },
-    { id: 'role', label: 'Role', value: ROLE_LABELS[parse.role] ?? parse.role },
-    { id: 'armor', label: 'Armor type', value: ARMOR_BY_CLASS[parse.class] ?? 'Unknown' },
-    { id: 'difficulty', label: 'Difficulty', value: parse.difficulty },
-    { id: 'percentile', label: 'Parse percentile', value: percentileBracket(parse.percentile) },
-    { id: 'region', label: 'Region', value: parse.region },
+export function hintsFor(parse, pool) {
+  const all = [
+    { id: 'raid', label: 'Raid', value: parse.raid, field: 'raid' },
+    { id: 'role', label: 'Role', value: ROLE_LABELS[parse.role] ?? parse.role, field: 'role' },
+    { id: 'armor', label: 'Armor type', value: ARMOR_BY_CLASS[parse.class] ?? 'Unknown', field: 'class' },
+    { id: 'difficulty', label: 'Difficulty', value: parse.difficulty, field: 'difficulty' },
+    {
+      id: 'wipes',
+      label: 'Wipes on this boss',
+      value: parse.wipes === 0 ? 'None — clean kill' : `${parse.wipes}`,
+      field: 'wipes',
+      skip: typeof parse.wipes !== 'number',
+    },
+    { id: 'percentile', label: 'Parse percentile', value: percentileBracket(parse.percentile), field: 'percentile' },
+    { id: 'region', label: 'Region', value: parse.region, field: 'region' },
     {
       id: 'guild',
       label: 'Guild',
-      value: `${parse.guild[0]}${'·'.repeat(Math.max(0, parse.guild.length - 1))}`,
+      value: `${parse.guild?.[0] ?? '?'}${'·'.repeat(Math.max(0, (parse.guild?.length ?? 1) - 1))}`,
+      field: 'guild',
     },
   ];
+
+  const varies = (field) => !pool || pool.length < 2 || new Set(pool.map((p) => p[field])).size > 1;
+  return all
+    .filter((hint) => !hint.skip && (hint.id === 'raid' || varies(hint.field)))
+    .map(({ field, skip, ...hint }) => hint);
 }
 
 /**
@@ -81,8 +100,8 @@ export function msUntilNextHint({ guessesMade = 0, elapsedMs = 0, total }) {
  * The hints a player can see, with locked ones masked so the board can still
  * show the row shape.
  */
-export function visibleHints(parse, opts) {
-  const all = hintsFor(parse);
+export function visibleHints(parse, opts, pool) {
+  const all = hintsFor(parse, pool);
   const open = unlockedHintCount({ ...opts, total: all.length });
   return all.map((hint, i) => (i < open ? { ...hint, locked: false } : { ...hint, value: '???', locked: true }));
 }
