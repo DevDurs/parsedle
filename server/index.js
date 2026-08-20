@@ -9,6 +9,7 @@ import { createApp } from './app.js';
 import { createPoolProvider } from './pool.js';
 import { createWclClient, WclError } from './wcl.js';
 import { loadConfig } from './config.js';
+import { createRosterProvider, RosterStore } from './roster.js';
 import { ReportStore } from './store.js';
 
 const config = loadConfig();
@@ -22,11 +23,17 @@ try {
   console.warn(`[parsedle] ${err.message} — serving the bundled sample pool.`);
 }
 
-const pools = createPoolProvider({ store, client });
+const roster = createRosterProvider({
+  store: new RosterStore(config.rosterFile),
+  client,
+  guild: config.guild,
+});
+const pools = createPoolProvider({ store, client, roster });
 const server = createServer(
   createApp({
     store,
     pools,
+    roster,
     adminToken: config.adminToken,
     staticRoot: config.staticRoot,
     mounts: config.mounts,
@@ -37,6 +44,7 @@ server.listen(config.port, config.host, async () => {
   console.log(`[parsedle] listening on http://${config.host}:${config.port}`);
   console.log(`[parsedle] reports file: ${config.reportsFile}`);
   if (!config.adminToken) console.warn('[parsedle] ADMIN_TOKEN is unset — the admin API is disabled.');
+  console.log(`[parsedle] guild: ${config.guild.name}${config.guild.server ? ` — ${config.guild.server} (${config.guild.region})` : ''}`);
 
   // Warm the pool so the first player does not pay for the WCL round trip.
   try {

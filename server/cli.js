@@ -10,12 +10,15 @@
  */
 
 import { createPoolProvider } from './pool.js';
+import { parsesFromReport } from './transform.js';
+import { createRosterProvider, RosterStore } from './roster.js';
 import { createWclClient, WclError } from './wcl.js';
 import { loadConfig } from './config.js';
 import { ReportStore, sortNewestFirst, SAMPLE_SIZE } from './store.js';
 
 const config = loadConfig();
 const store = new ReportStore(config.reportsFile);
+const rosterStore = new RosterStore(config.rosterFile);
 const [command, ...args] = process.argv.slice(2);
 
 function makeClient() {
@@ -41,6 +44,50 @@ async function list() {
   console.log(`\n* = sampled by today's puzzle (newest ${SAMPLE_SIZE}).`);
 }
 
+function makeRoster(client) {
+  return createRosterProvider({ store: rosterStore, client, guild: config.guild });
+}
+
+async function showRoster({ force = false } = {}) {
+  const members = await makeRoster(makeClient()).getMembers({ force });
+  const overrides = await rosterStore.read();
+
+  console.log(`Guild: ${config.guild.name}${config.guild.server ? ` — ${config.guild.server} (${config.guild.region})` : ''}`);
+  if (members.error) console.warn(`! Warcraft Logs roster unavailable: ${members.error}`);
+  if (!members.configured) console.warn('! No guild configured — set GUILD_NAME, GUILD_SERVER and GUILD_REGION.');
+  console.log(`${members.size} member${members.size === 1 ? '' : 's'} (source: ${members.source})`);
+  if (overrides.include.length) console.log(`  vouched for: ${overrides.include.join(', ')}`);
+  if (overrides.exclude.length) console.log(`  barred:      ${overrides.exclude.join(', ')}`);
+  if (members.size === 0) {
+    console.warn('\n! Nobody can be verified as a member, so no real parse can be an answer yet.');
+    console.warn('  Add names with:  node server/cli.js roster add <name> [<name>…]');
+  }
+}
+
+/**
+ * Seed the roster from a report's own players — far less typing than 25 names,
+ * and pugs are easy to prune afterwards with `roster exclude`.
+ */
+async function importRoster(code) {
+  const client = makeClient();
+  if (!client) {
+    console.error('Importing needs Warcraft Logs credentials (WCL_CLIENT_ID / WCL_CLIENT_SECRET).');
+    process.exitCode = 1;
+    return;
+  }
+  const target = code ?? (await store.latest(1))[0]?.code;
+  if (!target) {
+    console.error('No report to import from. Add one first, or pass a report code.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const players = [...new Set(parsesFromReport(await client.fetchReport(target)).map((r) => r.player))].sort();
+  const { added } = await rosterStore.add('include', players);
+  console.log(`Imported ${added.length} of ${players.length} player(s) from ${target}.`);
+  console.log('Prune anyone who was a pug:  node server/cli.js roster exclude <name>');
+}
+
 async function main() {
   switch (command) {
     case 'add': {
@@ -58,8 +105,30 @@ async function main() {
     case undefined:
       await list();
       break;
+    case 'roster': {
+      const [action, ...names] = args;
+      if (action === 'add' || action === 'include') {
+        const { added } = await rosterStore.add('include', names);
+        console.log(added.length ? `Vouched for ${added.join(', ')}` : 'Nothing new to add');
+      } else if (action === 'exclude' || action === 'remove') {
+        const { added } = await rosterStore.add('exclude', names);
+        console.log(added.length ? `Barred ${added.join(', ')}` : 'Nothing new to bar');
+      } else if (action === 'import') {
+        await importRoster(names[0]);
+      } else if (action === 'forget') {
+        const { removed } = await rosterStore.forget(names);
+        console.log(removed.length ? `Forgot ${removed.join(', ')}` : 'No such override');
+      } else if (action && action !== 'refresh' && action !== 'list') {
+        console.error(`Unknown roster command: ${action}`);
+        process.exitCode = 1;
+        return;
+      }
+      await showRoster({ force: action === 'refresh' });
+      break;
+    }
     case 'check': {
-      const pools = createPoolProvider({ store, client: makeClient() });
+      const client = makeClient();
+      const pools = createPoolProvider({ store, client, roster: makeRoster(client) });
       const { pool, sources, sample, warnings } = await pools.getPool({ force: true });
       for (const warning of warnings) console.warn(`! ${warning}`);
       for (const source of sources) console.log(`report ${source.code} — ${source.title}`);
@@ -72,7 +141,9 @@ async function main() {
     }
     default:
       console.error(`Unknown command: ${command}`);
-      console.error('Usage: node server/cli.js [add <url> [label] | remove <code> | list | check]');
+      console.error(
+        'Usage: node server/cli.js [add <url> [label] | remove <code> | list | check | roster [refresh|add|exclude|forget] <name…>]',
+      );
       process.exitCode = 1;
   }
 }

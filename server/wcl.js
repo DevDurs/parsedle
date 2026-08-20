@@ -39,6 +39,28 @@ query ParsedleReport($code: String!) {
   }
 }`;
 
+/**
+ * The guild's roster, one page at a time. Either identify the guild by its
+ * numeric id, or by name + realm slug + region.
+ */
+export const ROSTER_QUERY = `
+query ParsedleRoster($id: Int, $name: String, $server: String, $region: String, $page: Int!) {
+  guildData {
+    guild(id: $id, name: $name, serverSlug: $server, serverRegion: $region) {
+      id
+      name
+      members(limit: 100, page: $page) {
+        current_page
+        has_more_pages
+        data { id name level }
+      }
+    }
+  }
+}`;
+
+/** WCL paginates at 100; this caps a runaway loop at a very large guild. */
+const MAX_ROSTER_PAGES = 20;
+
 export class WclError extends Error {
   constructor(message, { status, details } = {}) {
     super(message);
@@ -122,6 +144,32 @@ export function createWclClient({ clientId, clientSecret, fetchImpl = fetch, now
       const report = data?.reportData?.report;
       if (!report) throw new WclError(`No report found for code ${code}`, { status: 404 });
       return report;
+    },
+
+    /**
+     * Every character on the guild's roster, followed across pages.
+     *
+     * @param {{id?: number, name?: string, server?: string, region?: string}} guild
+     * @returns {Promise<{guild: {id: number, name: string}, members: string[]}>}
+     */
+    async fetchGuildRoster({ id = null, name = null, server = null, region = null }) {
+      if (!id && !(name && server && region)) {
+        throw new WclError('Identify the guild by id, or by name + server + region');
+      }
+
+      const members = [];
+      let guild = null;
+      for (let page = 1; page <= MAX_ROSTER_PAGES; page++) {
+        const data = await graphql(ROSTER_QUERY, { id, name, server, region, page });
+        const node = data?.guildData?.guild;
+        if (!node) throw new WclError(`No guild found for ${name ?? id}`, { status: 404 });
+        guild ??= { id: node.id, name: node.name };
+        for (const member of node.members?.data ?? []) {
+          if (member?.name) members.push(member.name);
+        }
+        if (!node.members?.has_more_pages) break;
+      }
+      return { guild, members };
     },
   };
 }

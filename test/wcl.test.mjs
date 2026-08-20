@@ -93,3 +93,51 @@ test('a missing report reads as a 404, not an empty game', async () => {
   const client = createWclClient({ clientId: 'id', clientSecret: 'secret', fetchImpl: wcl.fetchImpl });
   await assert.rejects(() => client.fetchReport('code12345678'), (err) => err.status === 404);
 });
+
+test('the guild roster is followed across pages', async () => {
+  const pages = {
+    1: { current_page: 1, has_more_pages: true, data: [{ name: 'Thalvira' }, { name: 'Brokktar' }] },
+    2: { current_page: 2, has_more_pages: false, data: [{ name: 'Sunweaver' }] },
+  };
+  const asked = [];
+  const client = createWclClient({
+    clientId: 'id',
+    clientSecret: 'secret',
+    fetchImpl: async (url, options) => {
+      if (url.includes('token')) return jsonResponse({ access_token: 't', expires_in: 3600 });
+      const variables = JSON.parse(options.body).variables;
+      asked.push(variables);
+      return jsonResponse({
+        data: { guildData: { guild: { id: 7, name: 'LuckyDo', members: pages[variables.page] } } },
+      });
+    },
+  });
+
+  const roster = await client.fetchGuildRoster({ name: 'LuckyDo', server: 'draenor', region: 'EU' });
+  assert.deepEqual(roster.members, ['Thalvira', 'Brokktar', 'Sunweaver']);
+  assert.deepEqual(roster.guild, { id: 7, name: 'LuckyDo' });
+  assert.deepEqual(asked.map((v) => v.page), [1, 2], 'stops as soon as the pages run out');
+  assert.equal(asked[0].name, 'LuckyDo');
+});
+
+test('a guild needs enough identity to be looked up', async () => {
+  const wcl = fakeWcl();
+  const client = createWclClient({ clientId: 'id', clientSecret: 'secret', fetchImpl: wcl.fetchImpl });
+  await assert.rejects(() => client.fetchGuildRoster({ name: 'LuckyDo' }), /id, or by name \+ server \+ region/);
+  assert.equal(wcl.issued, 0, 'no pointless round trip');
+});
+
+test('an unknown guild is a 404, not an empty roster', async () => {
+  const client = createWclClient({
+    clientId: 'id',
+    clientSecret: 'secret',
+    fetchImpl: async (url) =>
+      url.includes('token')
+        ? jsonResponse({ access_token: 't', expires_in: 3600 })
+        : jsonResponse({ data: { guildData: { guild: null } } }),
+  });
+  await assert.rejects(
+    () => client.fetchGuildRoster({ name: 'Nope', server: 'draenor', region: 'EU' }),
+    (err) => err.status === 404,
+  );
+});

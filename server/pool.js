@@ -17,9 +17,9 @@ export const REPORT_TTL_MS = 30 * 60 * 1000;
 export const MIN_POOL = 6;
 
 /**
- * @param {{store: import('./store.js').ReportStore, client: ?{fetchReport: (code: string) => Promise<object>}, sampleSize?: number, now?: () => number}} deps
+ * @param {{store: import('./store.js').ReportStore, client: ?{fetchReport: (code: string) => Promise<object>}, roster?: ?ReturnType<typeof import('./roster.js').createRosterProvider>, sampleSize?: number, now?: () => number}} deps
  */
-export function createPoolProvider({ store, client, sampleSize = SAMPLE_SIZE, now = Date.now }) {
+export function createPoolProvider({ store, client, roster = null, sampleSize = SAMPLE_SIZE, now = Date.now }) {
   /** @type {Map<string, {fetchedAt: number, report: object}>} */
   const reportCache = new Map();
   let built = null;
@@ -72,7 +72,28 @@ export function createPoolProvider({ store, client, sampleSize = SAMPLE_SIZE, no
       }
     }
 
-    const pool = buildPool(reports);
+    // Pugs fill spots on plenty of nights, and nobody can be expected to name
+    // one. Only guild members are ever the answer — and if we cannot say who
+    // those are, nobody is, rather than everybody.
+    const members = roster ? await roster.getMembers() : null;
+    if (members && members.size === 0) {
+      warnings.push(
+        members.error
+          ? `Could not read the guild roster (${members.error}) — nobody can be verified as a member, so the sample pool is playing instead.`
+          : members.configured
+            ? 'The guild roster came back empty — add members with `node server/cli.js roster add <name>` to start playing on real logs.'
+            : 'No guild configured (GUILD_NAME / GUILD_SERVER / GUILD_REGION) — the sample pool is playing so no pug can become the answer.',
+      );
+      const value = { pool: PARSES, sources: [], sample: true, warnings, builtAt: now() };
+      built = { key, builtAt: now(), value };
+      return value;
+    }
+
+    const { pool, skipped } = buildPool(reports, { members: members?.names ?? null });
+    if (skipped.length) {
+      warnings.push(`Skipped ${skipped.length} raider${skipped.length === 1 ? '' : 's'} not on the guild roster.`);
+    }
+
     if (pool.length < MIN_POOL) {
       warnings.push(
         `Only ${pool.length} ranked parse${pool.length === 1 ? '' : 's'} in the sampled reports — ` +

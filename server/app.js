@@ -63,7 +63,7 @@ function tokenMatches(expected, provided) {
 /**
  * @param {{store: import('./store.js').ReportStore, pools: ReturnType<typeof import('./pool.js').createPoolProvider>, adminToken?: string, staticRoot: string, now?: () => number}} deps
  */
-export function createApp({ store, pools, adminToken = '', staticRoot, mounts = {}, now = Date.now }) {
+export function createApp({ store, pools, roster = null, adminToken = '', staticRoot, mounts = {}, now = Date.now }) {
   const root = resolve(staticRoot);
   // Extra read-only trees grafted into the URL space — /lib serves the shared
   // rule modules the page imports, without exposing the whole repo.
@@ -171,6 +171,43 @@ export function createApp({ store, pools, adminToken = '', staticRoot, mounts = 
             sources,
             sample,
             warnings,
+          });
+          return;
+        }
+      }
+
+      if (pathname === '/api/roster' && roster) {
+        if (!requireAdmin(req, res)) return;
+
+        if (req.method === 'GET') {
+          const members = await roster.getMembers({ force: url.searchParams.get('refresh') === '1' });
+          sendJson(res, 200, {
+            members: [...members.names].sort(),
+            size: members.size,
+            source: members.source,
+            error: members.error,
+            overrides: await roster.store.read(),
+          });
+          return;
+        }
+
+        // { include: [names] } vouches for someone; { exclude: [names] } bars
+        // them; { forget: [names] } drops the override either way.
+        if (req.method === 'POST') {
+          const body = await readJsonBody(req);
+          for (const list of ['include', 'exclude']) {
+            if (Array.isArray(body[list]) && body[list].length) await roster.store.add(list, body[list].map(String));
+          }
+          if (Array.isArray(body.forget) && body.forget.length) await roster.store.forget(body.forget.map(String));
+          roster.invalidate();
+          pools.invalidate();
+          const members = await roster.getMembers();
+          sendJson(res, 200, {
+            members: [...members.names].sort(),
+            size: members.size,
+            source: members.source,
+            error: members.error,
+            overrides: await roster.store.read(),
           });
           return;
         }

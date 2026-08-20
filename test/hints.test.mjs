@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import PARSES from '../src/data/parses.js';
+import { FIELDS } from '../src/lib/compare.js';
 import {
   ARMOR_BY_CLASS,
   HINT_INTERVAL_MS,
@@ -34,11 +35,16 @@ test('formatting reads the way a log does', () => {
   assert.equal(formatAmount(912000, 'healer'), '0.91M HPS');
 });
 
-test('the guild hint shows one letter and the length', () => {
-  const guild = hintsFor(PARSES[0]).find((h) => h.id === 'guild');
-  assert.ok(guild.value.startsWith(PARSES[0].guild[0]));
-  assert.equal(guild.value.length, PARSES[0].guild.length);
-  assert.ok(!guild.value.includes(PARSES[0].guild.slice(1)));
+test('the wipe count on the answer\u2019s boss is a hint, not a column', () => {
+  const clean = hintsFor({ ...PARSES[0], wipes: 0 }).find((h) => h.id === 'wipes');
+  assert.equal(clean.value, 'None — clean kill');
+  assert.equal(hintsFor({ ...PARSES[0], wipes: 4 }).find((h) => h.id === 'wipes').value, '4');
+  assert.equal(hintsFor(PARSES[0]).find((h) => h.id === 'wipes'), undefined, 'sample rows have no wipe count');
+});
+
+test('nobody is asked to guess a guild any more', () => {
+  assert.equal(hintsFor(PARSES[0]).find((h) => h.id === 'guild'), undefined);
+  assert.ok(!FIELDS.some((f) => f.key === 'guild'));
 });
 
 test('one hint is free, and guesses open the rest', () => {

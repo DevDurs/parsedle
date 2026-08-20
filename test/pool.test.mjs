@@ -5,8 +5,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createPoolProvider, REPORT_TTL_MS } from '../server/pool.js';
+import { createRosterProvider, RosterStore } from '../server/roster.js';
 import { ReportStore } from '../server/store.js';
 import { makeReport } from './fixtures/report.js';
+
+/** A roster provider that simply knows these names. */
+async function rosterOf(names) {
+  const dir = await mkdtemp(join(tmpdir(), 'parsedle-pool-roster-'));
+  return createRosterProvider({
+    store: new RosterStore(join(dir, 'roster.json')),
+    client: { fetchGuildRoster: async () => ({ guild: { id: 1, name: 'LuckyDo' }, members: names }) },
+    guild: { name: 'LuckyDo', server: 'draenor', region: 'EU' },
+  });
+}
 
 async function freshStore() {
   const dir = await mkdtemp(join(tmpdir(), 'parsedle-pool-'));
@@ -150,4 +161,69 @@ test('the raid night time is written back so ordering settles', async () => {
   const client = fakeClient({ AAAA1111AAAA1111: bigReport('AAAA1111AAAA1111', 8, 1_700_000_000_000) });
   await createPoolProvider({ store, client }).getPool();
   assert.equal((await store.read())[0].startTime, 1_700_000_000_000);
+});
+
+test('only guild members can be the answer', async (t) => {
+  const store = await freshStore();
+  await store.add('AAAA1111AAAA1111');
+
+  // Eight of ours, plus a pug who out-parsed all of them.
+  const report = bigReport('AAAA1111AAAA1111');
+  report.rankings.data[0].roles.dps.characters.push({
+    id: 99,
+    name: 'Pugsley',
+    class: 'Rogue',
+    spec: 'Outlaw',
+    amount: 9_000_000,
+    rankPercent: 100,
+    bracketData: 700,
+  });
+
+  const pools = createPoolProvider({
+    store,
+    client: fakeClient({ AAAA1111AAAA1111: report }),
+    roster: await rosterOf(Array.from({ length: 8 }, (_, i) => `Raider${i}`)),
+  });
+
+  const { pool, warnings, sample } = await pools.getPool();
+  assert.equal(sample, false);
+  assert.ok(!pool.some((p) => p.player === 'Pugsley'), 'the pug is not in the pool at any percentile');
+  assert.equal(pool.length, 8);
+  assert.ok(warnings.some((w) => /Skipped 1 raider not on the guild roster/.test(w)));
+});
+
+test('an unreadable guild roster stops real parses being served at all', async (t) => {
+  const store = await freshStore();
+  await store.add('AAAA1111AAAA1111');
+  const dir = await mkdtemp(join(tmpdir(), 'parsedle-pool-roster-'));
+  const roster = createRosterProvider({
+    store: new RosterStore(join(dir, 'roster.json')),
+    client: { fetchGuildRoster: async () => { throw new Error('Warcraft Logs returned 503'); } },
+    guild: { name: 'LuckyDo', server: 'draenor', region: 'EU' },
+  });
+
+  const pools = createPoolProvider({
+    store,
+    client: fakeClient({ AAAA1111AAAA1111: bigReport('AAAA1111AAAA1111') }),
+    roster,
+  });
+
+  const { sample, warnings } = await pools.getPool();
+  assert.equal(sample, true, 'better the sample pool than a pug');
+  assert.match(warnings.at(-1), /Could not read the guild roster \(Warcraft Logs returned 503\)/);
+});
+
+test('a report of nothing but pugs falls back rather than emptying the game', async (t) => {
+  const store = await freshStore();
+  await store.add('AAAA1111AAAA1111');
+  const pools = createPoolProvider({
+    store,
+    client: fakeClient({ AAAA1111AAAA1111: bigReport('AAAA1111AAAA1111') }),
+    roster: await rosterOf(['Someone', 'Else']),
+  });
+
+  const { sample, warnings } = await pools.getPool();
+  assert.equal(sample, true);
+  assert.ok(warnings.some((w) => /Skipped 8 raiders not on the guild roster/.test(w)));
+  assert.match(warnings.at(-1), /Only 0 ranked parses/);
 });

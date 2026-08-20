@@ -82,11 +82,12 @@ test('guesses after a win are discarded rather than scored', () => {
   assert.equal(v.status, 'won');
 });
 
-test('a pool from one guild hides the columns that never vary', () => {
-  const oneGuild = PARSES.filter((p) => p.guild === 'Nine Circles');
-  const keys = buildPuzzleView(oneGuild, { now: NOW }).fields.map((f) => f.key);
-  assert.ok(!keys.includes('guild'), 'everyone shares a guild');
+test('columns that never vary are left off the board', () => {
+  const oneRegion = PARSES.filter((p) => p.region === 'EU');
+  const keys = buildPuzzleView(oneRegion, { now: NOW }).fields.map((f) => f.key);
+  assert.ok(!keys.includes('region'), 'one guild, one region — the column would always be green');
   assert.ok(keys.includes('class') && keys.includes('percentile'));
+  assert.ok(!keys.includes('guild'), 'guilds are gone entirely: only our own raiders play');
 });
 
 test('a forged startedAt cannot rush the hints or break the view', () => {

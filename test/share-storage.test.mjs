@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import PARSES from '../src/data/parses.js';
-import { evaluateGuess } from '../src/lib/compare.js';
+import { FIELDS, evaluateGuess } from '../src/lib/compare.js';
 import { shareGrid, shareText } from '../src/lib/share.js';
 import { emptyStats, recordResult } from '../src/lib/storage.js';
 
@@ -15,8 +15,8 @@ test('the share grid is one row of squares per guess', () => {
   const grid = shareGrid([wrong, right]);
   const rows = grid.split('\n');
   assert.equal(rows.length, 2);
-  assert.equal([...rows[1]].length, 9, 'one square per board column');
-  assert.equal(rows[1], '🟩'.repeat(9), 'the winning guess is all green');
+  assert.equal([...rows[1]].length, FIELDS.length, 'one square per board column');
+  assert.equal(rows[1], '🟩'.repeat(FIELDS.length), 'the winning guess is all green');
 });
 
 test('share text leads with the puzzle number and score', () => {

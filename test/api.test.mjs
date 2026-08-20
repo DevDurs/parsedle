@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createApp } from '../server/app.js';
 import { createPoolProvider } from '../server/pool.js';
+import { createRosterProvider, RosterStore } from '../server/roster.js';
 import { ReportStore } from '../server/store.js';
 import { makeReport } from './fixtures/report.js';
 
@@ -15,14 +16,15 @@ const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const ADMIN_TOKEN = 'test-token';
 
 /** A server on an ephemeral port, torn down with the test. */
-async function startServer(t, { client = null, adminToken = ADMIN_TOKEN } = {}) {
+async function startServer(t, { client = null, adminToken = ADMIN_TOKEN, roster = null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'parsedle-api-'));
   const store = new ReportStore(join(dir, 'reports.json'));
-  const pools = createPoolProvider({ store, client });
+  const pools = createPoolProvider({ store, client, roster });
   const server = createServer(
     createApp({
       store,
       pools,
+      roster,
       adminToken,
       staticRoot: join(repoRoot, 'public'),
       mounts: { '/lib': join(repoRoot, 'src/lib') },
@@ -167,4 +169,33 @@ test('unknown endpoints and methods answer honestly', async (t) => {
   assert.equal((await app.get('/api/nope')).status, 404);
   assert.equal((await app.postJson('/nope', {})).status, 405);
   assert.equal((await app.get('/nope.html')).status, 404);
+});
+
+test('the roster is readable and editable behind the admin token', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'parsedle-api-roster-'));
+  const rosterStore = new RosterStore(join(dir, 'roster.json'));
+  const roster = createRosterProvider({
+    store: rosterStore,
+    client: { fetchGuildRoster: async () => ({ guild: { id: 1, name: 'LuckyDo' }, members: ['Thalvira'] }) },
+    guild: { name: 'LuckyDo', server: 'draenor', region: 'EU' },
+  });
+  const app = await startServer(t, { roster });
+
+  assert.equal((await app.get('/api/roster')).status, 401, 'the roster is not public');
+
+  const listed = await (await app.get('/api/roster', { headers: { 'x-admin-token': ADMIN_TOKEN } })).json();
+  assert.deepEqual(listed.members, ['thalvira']);
+  assert.equal(listed.source, 'warcraftlogs');
+
+  const updated = await (
+    await app.postJson('/api/roster', { include: ['Newtrial'], exclude: ['Thalvira'] }, { 'x-admin-token': ADMIN_TOKEN })
+  ).json();
+  assert.deepEqual(updated.members, ['newtrial']);
+  assert.equal(updated.source, 'warcraftlogs', 'the edit response says where the list came from');
+  assert.deepEqual(await rosterStore.read(), { include: ['Newtrial'], exclude: ['Thalvira'] });
+
+  const forgotten = await (
+    await app.postJson('/api/roster', { forget: ['Thalvira'] }, { 'x-admin-token': ADMIN_TOKEN })
+  ).json();
+  assert.deepEqual(forgotten.members.sort(), ['newtrial', 'thalvira']);
 });

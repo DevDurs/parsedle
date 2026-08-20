@@ -18,9 +18,17 @@ export function loadConfig(env = process.env) {
     // The page and the server share the rule modules; nothing else is served.
     mounts: { '/lib': join(repoRoot, 'src/lib') },
     adminToken: env.ADMIN_TOKEN ?? '',
+    rosterFile: resolve(env.ROSTER_FILE ?? join(env.DATA_DIR ?? join(repoRoot, 'data'), 'roster.json')),
     wcl: {
       clientId: env.WCL_CLIENT_ID ?? '',
       clientSecret: env.WCL_CLIENT_SECRET ?? '',
+    },
+    // Only members of this guild are ever the answer.
+    guild: {
+      id: env.GUILD_ID ? Number(env.GUILD_ID) : null,
+      name: env.GUILD_NAME ?? 'LuckyDo',
+      server: env.GUILD_SERVER ?? '',
+      region: env.GUILD_REGION ?? '',
     },
     repoRoot,
   };

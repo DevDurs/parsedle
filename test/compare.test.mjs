@@ -20,7 +20,6 @@ test('a field matches exactly or not at all', () => {
   const a = byId('p001');
   assert.equal(compareField('region', a, a).verdict, 'hit');
   assert.equal(compareField('region', byId('p002'), a).verdict, 'miss');
-  assert.equal(compareField('guild', byId('p003'), a).verdict, 'hit');
 });
 
 test('spec is near when the class is right but the spec is not', () => {

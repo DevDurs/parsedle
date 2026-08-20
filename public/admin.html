@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Parsedle — reports</title>
   <meta name="robots" content="noindex" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🟩</text></svg>" />
   <link rel="stylesheet" href="/assets/styles.css" />
 </head>
 <body>
@@ -45,6 +46,22 @@
         </table>
       </div>
       <p class="legend"><span class="chip plain">The token is kept in this tab only, never stored.</span></p>
+    </section>
+
+    <section class="card" aria-labelledby="roster-title">
+      <h2 class="section-title" id="roster-title">Roster</h2>
+      <p class="guess-meta" id="roster-summary">Enter the admin token to load the roster.</p>
+      <form id="roster-form" autocomplete="off">
+        <div class="combo">
+          <input id="roster-name" type="text" placeholder="Character name" aria-label="Character name" />
+          <button type="submit" id="roster-include">Vouch for</button>
+          <button type="button" id="roster-exclude">Bar</button>
+        </div>
+      </form>
+      <div class="hints" id="roster-members" role="list"></div>
+      <p class="legend">
+        <span class="chip plain">Only these raiders can ever be the answer &mdash; pugs are never picked.</span>
+      </p>
     </section>
   </main>
 

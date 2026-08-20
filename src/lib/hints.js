@@ -42,9 +42,9 @@ export function formatAmount(amount, role) {
  * n guesses or n intervals.
  *
  * Pass the pool and hints that would be the same for every possible answer are
- * dropped: one guild's own logs share a guild and a region, and a hint that
- * rules nothing out is just a row of noise. The raid always opens the puzzle,
- * constant or not, because it frames what you are looking at.
+ * dropped: one guild's raiders share a region, and a hint that rules nothing
+ * out is just a row of noise. The raid always opens the puzzle, constant or
+ * not, because it frames what you are looking at.
  *
  * @param {object} parse
  * @param {object[]} [pool] the full answer pool, when it is known
@@ -65,12 +65,6 @@ export function hintsFor(parse, pool) {
     },
     { id: 'percentile', label: 'Parse percentile', value: percentileBracket(parse.percentile), field: 'percentile' },
     { id: 'region', label: 'Region', value: parse.region, field: 'region' },
-    {
-      id: 'guild',
-      label: 'Guild',
-      value: `${parse.guild?.[0] ?? '?'}${'·'.repeat(Math.max(0, (parse.guild?.length ?? 1) - 1))}`,
-      field: 'guild',
-    },
   ];
 
   const varies = (field) => !pool || pool.length < 2 || new Set(pool.map((p) => p[field])).size > 1;

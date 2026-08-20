@@ -1,8 +1,9 @@
 # Parsedle
 
-A daily guessing game over your guild's own Warcraft Logs: one parse from the
-last two raid nights, five guesses to name the raider who put it up. Everybody
-gets the same parse on the same UTC day.
+A daily guessing game over LuckyDo's own Warcraft Logs: one parse from the last
+two raid nights, five guesses to name the raider who put it up. Everybody gets
+the same parse on the same UTC day, and the answer is always one of ours —
+never a pug.
 
 ```sh
 cp .env.example .env          # WCL credentials + an admin token
@@ -60,6 +61,8 @@ The same operations are on the HTTP API, guarded by `ADMIN_TOKEN`:
 | `POST` | `/api/reports` | `{"url": "…", "label": "…"}` |
 | `GET` | `/api/reports` | — |
 | `DELETE` | `/api/reports/:code` | — |
+| `GET` | `/api/roster` | — (`?refresh=1` re-reads the site roster) |
+| `POST` | `/api/roster` | `{"include": […], "exclude": […], "forget": […]}` |
 
 Send the token as `x-admin-token` (or `Authorization: Bearer …`). With
 `ADMIN_TOKEN` unset the admin API is disabled outright rather than left open —
@@ -70,29 +73,69 @@ same report twice is a no-op.
 
 ### What a report becomes
 
-Each raider is reduced to **one row: their best parse across the sampled
-nights**. That keeps names unique — a name has to identify exactly one row —
-and "your best parse of the week" is the row worth arguing about anyway. Only
-ranked kills carry a percentile, so wipes never become answers, but the wipe
-count for the answer's boss shows up as a hint.
+Everyone who is not on the guild roster is dropped first (see below). Each
+remaining raider is then reduced to **one row: their best parse across the
+sampled nights**. That keeps names unique — a name has to identify exactly one
+row — and "your best parse of the week" is the row worth arguing about anyway.
+Only ranked kills carry a percentile, so wipes never become answers, but the
+wipe count for the answer's boss shows up as a hint.
 
-Columns that never vary are dropped: playing on one guild's logs, every row
-shares a guild and a region, and a column that is always green teaches
-nothing.
+Columns that never vary are dropped: every row shares a region, and a column
+that is always green teaches nothing. There is no guild column at all — only
+LuckyDo raiders are ever in the pool, so it would say the same thing on every
+line.
+
+## Only our raiders
+
+A pug who filled a spot on Tuesday is not a fair thing to ask people to name,
+so **only guild members can ever be the answer**. Membership is:
+
+```
+members = (LuckyDo's Warcraft Logs roster ∪ include) \ exclude
+```
+
+The site roster is read once every six hours. The two override lists live in
+`data/roster.json` and cover what the site roster is always slightly wrong
+about — a trial who has not been invited on Warcraft Logs yet, an alt under
+another name, someone who has left:
+
+```sh
+node server/cli.js roster                  # who counts, and where the list came from
+node server/cli.js roster refresh          # re-read the site roster now
+node server/cli.js roster add <name…>      # vouch for someone the roster misses
+node server/cli.js roster exclude <name…>  # bar someone the roster still lists
+node server/cli.js roster forget <name…>   # drop a local override
+node server/cli.js roster import [<code>]  # seed from a report, then prune the pugs
+```
+
+The same lists are on `GET`/`POST /api/roster` and in a panel on
+`/admin.html`. Names match case-insensitively and ignore a realm suffix, so
+`Thalvira`, `thalvira` and `Thalvira-Draenor` are one person.
+
+**If membership cannot be established, nobody plays rather than everybody**:
+an unreachable roster, an empty one, or no guild configured all fall back to
+the sample pool with the reason shown on the page. That way a bad roster fetch
+can never quietly promote a pug into the answer pool. `roster import` is the
+quickest way out of that state — seed from a real report and then
+`roster exclude` the handful who were not ours.
 
 ## Configuration
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` | — | Warcraft Logs v2 client, from <https://www.warcraftlogs.com/api/clients/> |
-| `ADMIN_TOKEN` | — | Guards the report list. Unset disables the admin API |
+| `GUILD_NAME` | `LuckyDo` | The guild whose members can be answers |
+| `GUILD_SERVER` / `GUILD_REGION` | — | Realm slug and region, e.g. `draenor` / `EU`. Needed to read the roster |
+| `GUILD_ID` | — | Use instead of name + server + region, if you know it |
+| `ADMIN_TOKEN` | — | Guards the report list and the roster. Unset disables the admin API |
 | `PORT` / `HOST` | `8080` / `0.0.0.0` | Listen address |
-| `DATA_DIR` | `./data` | Where `reports.json` lives — mount this |
+| `DATA_DIR` | `./data` | Where `reports.json` and `roster.json` live — mount this |
 | `STATIC_ROOT` | `./public` | The served page |
 
-Without credentials, or before the first report is added, the game serves a
-bundled sample pool of fictional raiders and says so on the page. That makes
-`docker compose up` playable before you have set anything up.
+Without credentials, before the first report is added, or with no roster to
+check names against, the game serves a bundled sample pool of fictional
+raiders and says so on the page. That makes `docker compose up` playable
+before you have set anything up.
 
 Warcraft Logs is rate limited, so each report is fetched at most once every 30
 minutes and the built pool is cached until the list changes.
@@ -104,6 +147,7 @@ minutes and the built pool is cached until the list changes.
 | `server/wcl.js` | OAuth + GraphQL against the Warcraft Logs v2 API |
 | `server/transform.js` | Report JSON → parse rows (pure, heavily tested) |
 | `server/store.js` | The report list, one JSON file |
+| `server/roster.js` | Who counts as a guild member |
 | `server/pool.js` | Newest two reports → the answer pool, cached |
 | `server/puzzle.js` | What a player is allowed to see |
 | `server/app.js` | Routes and static serving, no framework |
@@ -127,7 +171,7 @@ A pool of 20-30 raiders is a good game; the fallback kicks in below 6.
 ## Development
 
 ```sh
-npm test                 # 94 assertions, no network
+npm test                 # 115 assertions, no network
 npm start                # serve on :8080 with whatever is in the environment
 node server/cli.js check # what would today's pool be?
 ```

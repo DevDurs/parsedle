@@ -87,4 +87,58 @@ $('reports-body').addEventListener('click', async (event) => {
   }
 });
 
-$('token').addEventListener('change', load);
+/* ----------------------------------------------------------------- roster */
+
+function renderRoster(body) {
+  const { members = [], size = 0, source, error, overrides = { include: [], exclude: [] } } = body;
+  const barred = new Set(overrides.exclude.map((n) => n.split('-')[0].toLowerCase()));
+  const vouched = new Set(overrides.include.map((n) => n.split('-')[0].toLowerCase()));
+
+  const from = { warcraftlogs: 'the guild roster', overrides: 'local overrides', none: 'nowhere yet' }[source] ?? source;
+  $('roster-summary').textContent = error
+    ? `Warcraft Logs roster unavailable: ${error}`
+    : `${size} member${size === 1 ? '' : 's'}, from ${from}.` +
+      (size === 0 ? ' Nobody can be the answer until this list has names in it.' : '');
+
+  $('roster-members').innerHTML = [...members.map((n) => [n, vouched.has(n) ? 'vouched for' : 'guild roster']),
+    ...overrides.exclude.map((n) => [n, 'barred'])]
+    .map(
+      ([name, note]) => `<div class="hint ${note === 'barred' ? 'locked' : 'open'}" role="listitem">
+          <span class="hint-label">${escapeHtml(note)}</span>
+          <span class="hint-value">${escapeHtml(name)}</span>
+        </div>`,
+    )
+    .join('');
+}
+
+async function loadRoster() {
+  if (!$('token').value) return;
+  try {
+    renderRoster(await api('/api/roster'));
+  } catch (err) {
+    $('roster-summary').textContent = err.message;
+  }
+}
+
+async function updateRoster(list) {
+  const name = $('roster-name').value.trim();
+  if (!name) return;
+  try {
+    renderRoster(await api('/api/roster', { method: 'POST', body: JSON.stringify({ [list]: [name] }) }));
+    say(list === 'include' ? `${name} counts as one of ours.` : `${name} can no longer be the answer.`);
+    $('roster-name').value = '';
+  } catch (err) {
+    say(err.message, true);
+  }
+}
+
+$('roster-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  updateRoster('include');
+});
+$('roster-exclude').addEventListener('click', () => updateRoster('exclude'));
+
+$('token').addEventListener('change', () => {
+  load();
+  loadRoster();
+});

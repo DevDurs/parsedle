@@ -23,7 +23,6 @@ export const FIELDS = [
   { key: 'spec', label: 'Spec' },
   { key: 'role', label: 'Role' },
   { key: 'region', label: 'Region' },
-  { key: 'guild', label: 'Guild' },
   { key: 'boss', label: 'Boss' },
   { key: 'difficulty', label: 'Difficulty' },
   { key: 'percentile', label: 'Parse %' },
@@ -33,9 +32,9 @@ export const FIELDS = [
 /**
  * Columns worth showing for a given pool.
  *
- * A pool drawn from one guild's own logs has the same guild and region on
- * every row, and a column that is always green teaches nothing. Anything with
- * a single distinct value drops out; the identifying columns always stay.
+ * Every row in a pool drawn from one guild shares a region, and a column that
+ * is always green teaches nothing. Anything with a single distinct value drops
+ * out; the identifying columns always stay.
  *
  * @param {object[]} pool
  * @param {{key: string, label: string}[]} [fields]

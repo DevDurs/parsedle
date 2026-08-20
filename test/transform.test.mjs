@@ -46,12 +46,11 @@ test('a report becomes one row per ranked player per kill', () => {
   assert.ok(!rows.some((r) => r.boss === 'Plexus Sentinel' && r.difficulty !== 'Mythic'));
 });
 
-test('rows carry the fight, the guild and the night that produced them', () => {
+test('rows carry the fight, the region and the night that produced them', () => {
   const row = parsesFromReport(makeReport()).find((r) => r.player === 'Thalvira' && r.boss === 'Plexus Sentinel');
   assert.equal(row.class, 'Priest');
   assert.equal(row.spec, 'Shadow');
   assert.equal(row.role, 'dps');
-  assert.equal(row.guild, 'Whispers of Ash');
   assert.equal(row.region, 'EU');
   assert.equal(row.raid, 'Manaforge Omega');
   assert.equal(row.difficulty, 'Mythic');
@@ -131,7 +130,7 @@ test('two reports build one pool, newest performance winning', () => {
     },
   });
 
-  const pool = buildPool([makeReport(), second]);
+  const { pool } = buildPool([makeReport(), second]);
   assert.deepEqual(pool.map((p) => p.player), ['Emberlyn', 'Grimhollow', 'Sunweaver', 'Thalvira', 'Vireska']);
   const thalvira = pool.find((p) => p.player === 'Thalvira');
   assert.equal(thalvira.boss, 'Dimensius', 'her 100 in the newer report wins');

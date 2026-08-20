@@ -5,6 +5,8 @@
  * boss is testable without touching the network.
  */
 
+import { filterToMembers } from './roster.js';
+
 /** WCL fight difficulty ids. */
 export const DIFFICULTY_BY_ID = { 1: 'LFR', 2: 'Normal', 3: 'Normal', 4: 'Heroic', 5: 'Mythic' };
 
@@ -64,7 +66,6 @@ export function parsesFromReport(report) {
   const fights = report.fights ?? [];
   const fightById = new Map(fights.map((f) => [f.id, f]));
   const wipes = wipesByEncounter(fights);
-  const guild = report.guild?.name ?? 'Unknown';
   const region = report.guild?.server?.region?.compactName ?? 'Unknown';
   const raid = report.zone?.name ?? 'Unknown raid';
   const rankingRows = report.rankings?.data ?? [];
@@ -96,7 +97,6 @@ export function parsesFromReport(report) {
           spec: character.spec ?? 'Unknown',
           role,
           region,
-          guild,
           raid,
           boss,
           difficulty,
@@ -155,10 +155,22 @@ export function isPlayableParse(row) {
 }
 
 /**
- * The answer pool for a set of reports: every raider who logged a ranked kill,
- * represented by their best parse.
+ * The answer pool for a set of reports: every guild member who logged a ranked
+ * kill, represented by their best parse.
+ *
+ * Pass `members` — a Set of normalised names — and everyone else is dropped
+ * before the pool is built, so a pug can never become the answer. Omit it and
+ * every ranked raider is a candidate, which is only ever right for tests and
+ * for the bundled sample data.
+ *
+ * @param {object[]} reports
+ * @param {{members?: ?Set<string>}} [opts]
+ * @returns {{pool: object[], skipped: string[]}}
  */
-export function buildPool(reports) {
-  const rows = reports.flatMap((report) => parsesFromReport(report));
-  return bestParsePerPlayer(rows.filter(isPlayableParse));
+export function buildPool(reports, { members = null } = {}) {
+  const rows = reports.flatMap((report) => parsesFromReport(report)).filter(isPlayableParse);
+  const kept = members ? filterToMembers(rows, members) : rows;
+  const keptNames = new Set(kept.map((r) => r.player));
+  const skipped = [...new Set(rows.map((r) => r.player))].filter((name) => !keptNames.has(name));
+  return { pool: bestParsePerPlayer(kept), skipped: skipped.sort() };
 }

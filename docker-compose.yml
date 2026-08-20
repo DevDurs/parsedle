@@ -11,7 +11,12 @@ services:
       # Warcraft Logs client credentials — https://www.warcraftlogs.com/api/clients/
       WCL_CLIENT_ID: ${WCL_CLIENT_ID:-}
       WCL_CLIENT_SECRET: ${WCL_CLIENT_SECRET:-}
-      # Guards /api/reports. Unset means the admin API stays disabled.
+      # Only members of this guild are ever the answer.
+      GUILD_NAME: ${GUILD_NAME:-LuckyDo}
+      GUILD_SERVER: ${GUILD_SERVER:-}
+      GUILD_REGION: ${GUILD_REGION:-}
+      GUILD_ID: ${GUILD_ID:-}
+      # Guards /api/reports and /api/roster. Unset means the admin API stays disabled.
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       DATA_DIR: /data
     volumes:
