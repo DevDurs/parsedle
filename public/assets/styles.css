@@ -1,16 +1,54 @@
+/**
+ * Parsedle, dressed for Pandaria.
+ *
+ * The palette is lacquered wood and jade with imperial gold leaf, sat under a
+ * layer of mist — which is doing real work here, not just decoration: locked
+ * hints sit *in* the fog and clear as they open.
+ *
+ * Everything is self-contained. No web fonts, no image requests: the clouds
+ * and the wood grain are inline SVG data URIs, so the container serves the
+ * whole theme offline.
+ */
+
 :root {
-  --bg: #0e1015;
-  --panel: #171b23;
-  --panel-2: #1e2430;
-  --line: #2a3140;
-  --text: #e8ecf3;
-  --muted: #97a1b3;
-  --hit: #2f7d4f;
-  --near: #9a7c1f;
-  --miss: #333b4a;
-  --accent: #7aa2ff;
-  --radius: 12px;
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* Lacquer and wood — darkest at the back, panels lifted out of it. */
+  --ink: #0c1512;
+  --ink-2: #101d19;
+  --panel: #16241f;
+  --panel-2: #1d2f28;
+  --panel-3: #24382f;
+
+  /* Jade: the accent that carries the theme. */
+  --jade: #4cc79a;
+  --jade-deep: #2b8f6b;
+  --jade-dim: #1f6650;
+
+  /* Gold leaf, for hairlines and small emphasis. */
+  --gold: #d9b360;
+  --gold-dim: #8a6f34;
+
+  /* Lacquer red, used sparingly — errors and the odd seal. */
+  --cinnabar: #b8472f;
+
+  --text: #eef4ef;
+  --muted: #93a99f;
+  --line: rgba(217, 179, 96, 0.18);
+  --line-strong: rgba(217, 179, 96, 0.4);
+
+  /* Board verdicts. Jade for right, gold for close, wet stone for wrong. */
+  --hit: #2f8a63;
+  --hit-edge: #57c79b;
+  --near: #96742a;
+  --near-edge: #d9b360;
+  --miss: #263630;
+
+  --radius: 14px;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 30px rgba(0, 0, 0, 0.45);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Rolling cloud bank, the shape MoP puts on everything. */
+  --clouds: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='80' viewBox='0 0 240 80'%3E%3Cg fill='none' stroke='%234cc79a' stroke-width='1.4' stroke-opacity='.5'%3E%3Cpath d='M0 62c14 0 18-14 32-14s16 14 30 14 18-20 34-20 20 20 36 20 18-14 32-14 20 14 34 14 22-8 42-8'/%3E%3Cpath d='M-6 74c18 0 22-10 38-10s20 10 36 10 20-12 38-12 22 12 40 12 22-8 40-8 24 8 40 8'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 * { box-sizing: border-box; }
@@ -18,179 +56,372 @@
 body {
   margin: 0;
   padding: 0 1rem 3rem;
-  background: radial-gradient(1200px 600px at 50% -200px, #1b2233, var(--bg));
   color: var(--text);
-  font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.55 var(--sans);
+  background:
+    /* Sunlight breaking over the wall, and mist pooling at the bottom. */
+    radial-gradient(1100px 520px at 50% -240px, rgba(76, 199, 154, 0.16), transparent 70%),
+    radial-gradient(900px 420px at 12% 8%, rgba(217, 179, 96, 0.07), transparent 65%),
+    radial-gradient(1200px 700px at 88% 110%, rgba(43, 143, 107, 0.12), transparent 70%),
+    linear-gradient(180deg, var(--ink-2), var(--ink) 60%);
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
-main { max-width: 960px; margin: 0 auto; display: grid; gap: 1rem; }
+/* A cloud bank drifting behind everything, faint enough to read through. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: -20% -10% auto -10%;
+  height: 60vh;
+  background-image: var(--clouds);
+  background-size: 480px 160px;
+  opacity: 0.07;
+  pointer-events: none;
+  z-index: 0;
+  animation: drift 90s linear infinite;
+}
 
-.topbar { max-width: 960px; margin: 0 auto; padding: 2rem 0 1.25rem; text-align: center; }
-.wordmark { margin: 0; font-size: 2.5rem; letter-spacing: -0.02em; }
-.tagline { margin: 0.25rem 0 0; color: var(--muted); }
-.puzzle-no { margin: 0.5rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.9rem; }
+@keyframes drift {
+  from { background-position: 0 0; }
+  to { background-position: 960px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+}
+
+main, .topbar, footer { position: relative; z-index: 1; }
+/* minmax(0,…) so the wide board scrolls inside its card instead of stretching
+   the page — phones are where this gets played between pulls. */
+main { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+
+/* --- the banner --- */
+
+.topbar {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 2.5rem 0 1.5rem;
+  text-align: center;
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 3rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: linear-gradient(180deg, #eafff5 10%, var(--jade) 55%, var(--jade-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 18px rgba(76, 199, 154, 0.25);
+}
+
+/* Gold rule with a jade bead at the centre, like a scroll divider. */
+.wordmark::after {
+  content: "";
+  display: block;
+  width: min(340px, 70%);
+  height: 10px;
+  margin: 0.6rem auto 0;
+  background:
+    radial-gradient(circle at 50% 50%, var(--jade) 0 3px, transparent 4px),
+    linear-gradient(90deg, transparent, var(--gold-dim) 18%, var(--gold) 50%, var(--gold-dim) 82%, transparent);
+  background-repeat: no-repeat;
+  background-size: 100% 100%, 100% 1px;
+  background-position: center, center;
+  opacity: 0.85;
+}
+
+.tagline { margin: 0.6rem 0 0; color: var(--muted); font-family: var(--serif); font-style: italic; }
+.puzzle-no {
+  margin: 0.45rem 0 0;
+  color: var(--gold-dim);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+}
+
+/* --- lacquer panels --- */
 
 .card {
-  background: var(--panel);
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(76, 199, 154, 0.05), transparent 40%),
+    linear-gradient(180deg, var(--panel), var(--panel-2));
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 1rem 1.1rem 1.2rem;
+  padding: 1.1rem 1.2rem 1.3rem;
+  min-width: 0;
+}
+
+/* Gold leaf catching the light along the top edge. */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: linear-gradient(90deg, transparent, var(--line-strong) 25%, var(--line-strong) 75%, transparent);
 }
 
 .section-title {
-  margin: 0 0 0.75rem;
-  font-size: 0.8rem;
+  margin: 0 0 0.85rem;
+  font-family: var(--serif);
+  font-size: 0.82rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+}
+
+/* --- the parse itself --- */
+
+.parse-stats { display: flex; flex-wrap: wrap; gap: 1.75rem; margin: 0 0 1.1rem; }
+.parse-stats dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.parse-stats dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  color: #f4fbf6;
+  font-variant-numeric: tabular-nums;
+}
+
+.hints { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 0.55rem; }
+
+.hint {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 0.55rem 0.7rem;
+}
+
+.hint.open { border-color: rgba(76, 199, 154, 0.32); }
+.hint-label {
+  display: block;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
   color: var(--muted);
 }
+.hint-value { display: block; margin-top: 0.2rem; font-weight: 600; color: #eafff5; }
 
-/* --- parse card --- */
-.parse-stats { display: flex; flex-wrap: wrap; gap: 1.5rem; margin: 0 0 1rem; }
-.parse-stats dt { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.parse-stats dd { margin: 0.15rem 0 0; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
-
-.hints { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
-.hint {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.5rem 0.65rem;
+/* A locked hint is not dimmed — it is fogged in, and the mist lifts. */
+.hint.locked { opacity: 0.5; }
+.hint.locked .hint-value { letter-spacing: 0.25em; color: var(--muted); }
+.hint.locked::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--clouds);
+  background-size: 240px 80px;
+  opacity: 0.22;
+  animation: drift 40s linear infinite;
 }
-.hint-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
-.hint-value { display: block; margin-top: 0.15rem; font-weight: 600; }
-.hint.locked { opacity: 0.45; }
-.hint.locked .hint-value { letter-spacing: 0.2em; }
-.hint-timer { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.85rem; }
 
-/* --- guess card --- */
-#guess-form { position: relative; }
+@media (prefers-reduced-motion: reduce) {
+  .hint.locked::after { animation: none; }
+}
+
+.hint-timer { margin: 0.85rem 0 0; color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+/* --- guessing --- */
+
+#guess-form, #add-form, #roster-form { position: relative; }
 .combo { display: flex; gap: 0.5rem; }
-#guess-input {
+
+#guess-input, #token, #url, #label, #roster-name {
   flex: 1;
-  padding: 0.7rem 0.85rem;
-  background: var(--panel-2);
+  padding: 0.75rem 0.9rem;
+  background: rgba(8, 18, 15, 0.6);
   color: var(--text);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 11px;
   font-size: 1rem;
+  font-family: inherit;
 }
-#guess-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+#guess-input::placeholder, #token::placeholder, #url::placeholder, #label::placeholder, #roster-name::placeholder {
+  color: #5f7268;
+}
+
+#guess-input:focus, #token:focus, #url:focus, #label:focus, #roster-name:focus {
+  outline: none;
+  border-color: var(--jade);
+  box-shadow: 0 0 0 3px rgba(76, 199, 154, 0.18);
+}
+
 button {
-  padding: 0.7rem 1.1rem;
-  background: var(--accent);
-  color: #0d1220;
-  border: 0;
-  border-radius: 10px;
+  padding: 0.75rem 1.2rem;
+  background: linear-gradient(180deg, var(--jade-deep), var(--jade-dim));
+  color: #f2fffa;
+  border: 1px solid rgba(217, 179, 96, 0.35);
+  border-radius: 11px;
   font-size: 0.95rem;
   font-weight: 700;
+  letter-spacing: 0.02em;
   cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+button:hover:not(:disabled) { filter: brightness(1.12); box-shadow: 0 0 16px rgba(76, 199, 154, 0.2); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .suggestions {
   position: absolute;
   z-index: 5;
   left: 0;
   right: 0;
-  margin: 0.35rem 0 0;
-  padding: 0.25rem;
+  margin: 0.4rem 0 0;
+  padding: 0.3rem;
   list-style: none;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
   box-shadow: var(--shadow);
   max-height: 17rem;
   overflow-y: auto;
 }
+
 .suggestions li {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.5rem 0.6rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 8px;
   cursor: pointer;
 }
-.suggestions li.active, .suggestions li:hover { background: #2b344a; }
+
+.suggestions li.active, .suggestions li:hover { background: var(--panel-3); color: #eafff5; }
 .sugg-meta { color: var(--muted); font-size: 0.85rem; }
 
-.guess-meta { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.9rem; }
-.message { margin: 0.35rem 0 0; min-height: 1.4em; color: var(--accent); font-size: 0.9rem; }
+.guess-meta { margin: 0.85rem 0 0; color: var(--muted); font-size: 0.9rem; }
+.message { margin: 0.35rem 0 0; min-height: 1.4em; color: var(--jade); font-size: 0.9rem; }
 
-/* --- board --- */
-.board-scroll { overflow-x: auto; }
-.board { width: 100%; border-collapse: separate; border-spacing: 4px; font-size: 0.86rem; }
-.board th[scope='col'] {
-  color: var(--muted);
-  font-size: 0.68rem;
+/* --- the board --- */
+
+.board-scroll { overflow-x: auto; min-width: 0; }
+.board { width: 100%; border-collapse: separate; border-spacing: 5px; font-size: 0.86rem; }
+
+.board th[scope="col"] {
+  color: var(--gold-dim);
+  font-size: 0.66rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
+  letter-spacing: 0.1em;
+  font-weight: 700;
   text-align: left;
-  padding: 0 0.4rem 0.2rem;
+  padding: 0 0.45rem 0.3rem;
   white-space: nowrap;
 }
+
 .board .player {
   text-align: left;
-  padding: 0.55rem 0.6rem;
-  background: var(--panel-2);
-  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: 9px;
   white-space: nowrap;
+  font-family: var(--serif);
+  font-size: 0.95rem;
 }
-.board .player.hit { background: var(--hit); }
+
 .cell {
-  padding: 0.55rem 0.6rem;
-  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  border-radius: 9px;
   background: var(--miss);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.cell.hit { background: var(--hit); }
-.cell.near { background: var(--near); }
-.arrow { opacity: 0.85; font-weight: 700; }
 
-.legend { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.9rem 0 0; font-size: 0.8rem; color: var(--muted); }
-.chip { padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--miss); color: var(--text); }
-.chip.hit { background: var(--hit); }
-.chip.near { background: var(--near); }
-.chip.plain { background: transparent; border: 1px solid var(--line); }
+.cell.hit, .board .player.hit {
+  background: linear-gradient(180deg, var(--hit), #24704f);
+  border-color: var(--hit-edge);
+  color: #f2fffa;
+}
 
-/* --- result --- */
+.cell.near {
+  background: linear-gradient(180deg, var(--near), #7a5d1f);
+  border-color: var(--near-edge);
+  color: #fff8e6;
+}
+
+.arrow { opacity: 0.9; font-weight: 700; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0; font-size: 0.78rem; color: var(--muted); }
+.chip { padding: 0.22rem 0.6rem; border-radius: 999px; background: var(--miss); color: var(--text); border: 1px solid transparent; }
+.chip.hit { background: var(--hit); border-color: var(--hit-edge); }
+.chip.near { background: var(--near); border-color: var(--near-edge); }
+.chip.plain { background: transparent; border-color: var(--line); }
+
+/* --- the result --- */
+
+.result-card { border-color: var(--line-strong); }
+#result-detail { margin: 0; }
+#result-detail a { color: var(--jade); }
+
 .share-grid {
-  margin: 0.9rem 0;
-  padding: 0.75rem;
-  background: var(--panel-2);
+  margin: 1rem 0;
+  padding: 0.8rem;
+  background: rgba(8, 18, 15, 0.55);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  font-size: 1.1rem;
+  border-radius: 11px;
+  font-size: 1.15rem;
   line-height: 1.35;
   overflow-x: auto;
 }
-.result-actions { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; }
+
+.result-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .next-puzzle { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.9rem; }
-.stats { display: flex; flex-wrap: wrap; gap: 1.5rem; margin: 1.2rem 0 0; }
-.stats dt { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
-.stats dd { margin: 0.15rem 0 0; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 
-footer { max-width: 960px; margin: 2rem auto 0; color: var(--muted); font-size: 0.82rem; text-align: center; }
-code { background: var(--panel-2); padding: 0.1rem 0.35rem; border-radius: 5px; }
+.stats { display: flex; flex-wrap: wrap; gap: 1.75rem; margin: 1.3rem 0 0; }
+.stats dt { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; }
+.stats dd { margin: 0.2rem 0 0; font-family: var(--serif); font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 
-@media (max-width: 560px) {
-  .wordmark { font-size: 2rem; }
-  .parse-stats dd { font-size: 1.25rem; }
-}
+/* --- notices, footer, admin --- */
 
-/* --- server-side notices --- */
 .notice {
   margin: 0;
-  padding: 0.7rem 0.9rem;
-  background: #2a2413;
-  border: 1px solid #5c4a17;
+  padding: 0.75rem 0.95rem;
+  background: linear-gradient(180deg, rgba(184, 71, 47, 0.16), rgba(184, 71, 47, 0.08));
+  border: 1px solid rgba(217, 179, 96, 0.35);
   border-radius: var(--radius);
-  color: #f0dfae;
+  color: #f6e2c8;
   font-size: 0.9rem;
 }
 
-footer a { color: var(--accent); }
-#reports-body button { padding: 0.35rem 0.7rem; font-size: 0.8rem; background: var(--panel-2); color: var(--text); }
+footer {
+  max-width: 980px;
+  margin: 2.5rem auto 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+footer a { color: var(--jade); }
+code { background: rgba(8, 18, 15, 0.6); padding: 0.1rem 0.38rem; border-radius: 5px; color: var(--gold); }
+
+#reports-body button, #roster-exclude {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  background: linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  color: var(--text);
+  border-color: var(--line);
+}
+
+#roster-summary { font-style: italic; }
+
+@media (max-width: 560px) {
+  .wordmark { font-size: 2.25rem; }
+  .parse-stats dd { font-size: 1.35rem; }
+  .parse-stats, .stats { gap: 1.1rem; }
+}
