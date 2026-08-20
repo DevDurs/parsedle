@@ -10,6 +10,24 @@ cp .env.example .env          # WCL credentials + an admin token
 docker compose up -d --build  # http://localhost:8080
 ```
 
+### The Warcraft Logs client
+
+Create one at <https://www.warcraftlogs.com/api/clients/> and copy the id and
+secret into `.env`. The form also demands a **redirect URL**, which is the one
+confusing part: that field belongs to the user-login (authorization code)
+flow, and Parsedle authenticates as itself with client credentials, so nothing
+is ever redirected anywhere. Register any URL you control and forget it:
+
+```
+https://parsedle.example.com/oauth/callback     # or wherever you deploy
+http://localhost:8080/oauth/callback            # fine for local testing
+```
+
+The trade-off that comes with client credentials is **the logs have to be
+public**. A private or unlisted report reads as "not found" — the error says
+so — because only a token issued to a logged-in user can see those. If your
+guild logs privately, say so and the user-login flow is a day's work to add.
+
 Then add a log — every week, one URL:
 
 ```sh
@@ -123,7 +141,7 @@ quickest way out of that state — seed from a real report and then
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` | — | Warcraft Logs v2 client, from <https://www.warcraftlogs.com/api/clients/> |
+| `WCL_CLIENT_ID` / `WCL_CLIENT_SECRET` | — | Warcraft Logs v2 client, from <https://www.warcraftlogs.com/api/clients/>. The redirect URL that form asks for is unused |
 | `GUILD_NAME` | `LuckyDo` | The guild whose members can be answers |
 | `GUILD_SERVER` / `GUILD_REGION` | — | Realm slug and region, e.g. `draenor` / `EU`. Needed to read the roster |
 | `GUILD_ID` | — | Use instead of name + server + region, if you know it |

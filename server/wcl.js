@@ -6,7 +6,10 @@
  * wipes alike) and the ranked parses for every kill.
  *
  * Create a client at https://www.warcraftlogs.com/api/clients/ and put the id
- * and secret in WCL_CLIENT_ID / WCL_CLIENT_SECRET.
+ * and secret in WCL_CLIENT_ID / WCL_CLIENT_SECRET. The registration form also
+ * demands a redirect URL: that belongs to the authorization-code flow, which
+ * this client does not use, so any URL you control will do and will never be
+ * visited. Client credentials read public data only — see fetchReport.
  */
 
 const TOKEN_URL = 'https://www.warcraftlogs.com/oauth/token';
@@ -142,7 +145,16 @@ export function createWclClient({ clientId, clientSecret, fetchImpl = fetch, now
     async fetchReport(code) {
       const data = await graphql(REPORT_QUERY, { code });
       const report = data?.reportData?.report;
-      if (!report) throw new WclError(`No report found for code ${code}`, { status: 404 });
+      if (!report) {
+        // A private report is indistinguishable from a missing one here:
+        // client-credentials tokens only see public logs. Say so, because the
+        // fix is a visibility setting, not a corrected URL.
+        throw new WclError(
+          `No report found for code ${code} — check the URL, and that the log is not private ` +
+            '(client credentials can only read public reports).',
+          { status: 404 },
+        );
+      }
       return report;
     },
 
