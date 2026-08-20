@@ -89,8 +89,13 @@ function scheduleHintRefresh() {
 
 /* ----------------------------------------------------------------- render */
 
+/**
+ * The unit is withheld until the role hint opens, or HPS would name a healer
+ * on sight. It still needs a per-second marker in the meantime, though —
+ * a bare `868K` reads as a total rather than a rate.
+ */
 function formatAmount(amount, unit) {
-  return `${formatOutput(amount)}${unit ? ` ${unit}` : ''}`;
+  return `${formatOutput(amount)} ${unit ?? '/sec'}`;
 }
 
 function renderHeader() {
