@@ -1,50 +1,94 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Parsedle — Privacy</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🐼</text></svg>" />
-  <link rel="stylesheet" href="/assets/styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Parsedle — Privacy Policy</title>
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'&gt;&lt;text y='13' font-size='13'&gt;%F0%9F%90%BC&lt;/text&gt;&lt;/svg&gt;">
+  <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
   <header class="topbar">
     <h1 class="wordmark">Parsedle</h1>
-    <p class="tagline">Privacy</p>
+    <p class="tagline">Privacy Policy</p>
   </header>
 
   <main>
     <section class="card">
-      <h2 class="section-title">What is stored</h2>
-      <p>Parsedle is a daily guessing game run by and for one World of Warcraft guild. It stores as little as it can:</p>
+      <p><strong>Last updated:</strong> 20 August 2026. <strong>Effective:</strong> 20 August 2026.</p>
+      <p>Parsedle ("the game", "we") is a free daily guessing game for one World of Warcraft guild, playable in a browser and as a Discord Activity. It is operated by <strong>Jordan Dawson</strong>, an individual, and is not a company. This policy explains what the game collects, why, who sees it, and how to get it deleted.</p>
+      <p>Contact for any privacy question or deletion request: <a href="mailto:dev@durs.pro">dev@durs.pro</a>, or a direct message to the admins in the Discord server where you found the game.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">What we collect</h2>
+      <p>Only what the game needs to run. There is no account to create and no form to fill in.</p>
       <ul>
-        <li><strong>Your Discord user id, display name and avatar hash</strong>, from the <code>identify</code> scope, so the game knows whose scores are whose and can name you in the daily results post.</li>
-        <li><strong>What you guessed and when</strong>, per puzzle: the raiders you named, whether you solved it, and the times you started and finished.</li>
-        <li><strong>Public Warcraft Logs data</strong> for the guild's own raid reports — character names, specs, boss kills and parse percentiles — which is what the puzzles are made of.</li>
+        <li><strong>Discord profile basics</strong> — your Discord user id, your display name (global name, or username if you have none) and your avatar hash. These come from Discord's <code>identify</code> OAuth2 scope, which you approve when you sign in or when you launch the Activity. They let the game know whose scores are whose and name you in the daily results post.</li>
+        <li><strong>Discord server membership</strong> — if the operator has restricted the game to one server, we additionally request the <code>guilds.members.read</code> scope and ask Discord once, at sign-in, whether you are a member of that server. The answer is used to allow or refuse the login. Your nickname, roles and other server data are not stored.</li>
+        <li><strong>Your play record</strong> — for each daily puzzle: the raiders you guessed, in order, whether you solved it, and the timestamps at which you started and finished. Also the first and last time you signed in.</li>
+        <li><strong>A session cookie or token</strong> — a signed session identifier that keeps you logged in. In the browser it is an <code>HttpOnly</code> cookie; inside the Discord Activity the same session is carried in a bearer token held by the page, because a framed page should not depend on third-party cookie policy.</li>
+        <li><strong>Local browser storage</strong> — your in-progress board and personal win/streak statistics are cached in your browser's <code>localStorage</code> so a reload does not lose the day's game. This never leaves your device and you can clear it at any time through your browser.</li>
+        <li><strong>Public Warcraft Logs data</strong> — the guild's own public raid reports: character names, specs, item levels, boss kills, wipe counts and parse percentiles. This is what the puzzles are made of. It is read from Warcraft Logs' public API and concerns in-game characters, not the people playing.</li>
       </ul>
-      <p>Nothing else. No email address, no message content, no browsing history, no analytics, no advertising identifiers, no tracking pixels, and no cookies beyond the one that keeps you signed in.</p>
+      <p>We do <strong>not</strong> collect or receive your email address, your Discord password, message content, voice data, your Discord friend or server list, browsing history, location, payment details, advertising identifiers, or any special-category personal data. There are no analytics scripts, no tracking pixels and no third-party advertising in the game.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Why we collect it, and on what basis</h2>
+      <p>Every item above exists to deliver the game you asked for: identifying you so your results are yours, keeping you signed in, scoring a shared daily puzzle, and posting a guild scoreboard. Where the UK GDPR or EU GDPR applies, the legal basis is <em>performance of a contract</em> (running the game you chose to play) for your profile basics, session and play record, and <em>legitimate interests</em> (keeping the game usable and free of abuse) for restricting play to guild members. We do not profile you and we make no automated decisions with legal effects.</p>
     </section>
 
     <section class="card">
       <h2 class="section-title">Who can see it</h2>
-      <p>Your results are posted into the guild's own Discord channel — the score you got, and your name next to it. That is the point of the game, and it is the only place results are published.</p>
-      <p>Nothing is sold, shared with advertisers, or passed to any third party. The only outside services involved are Discord itself (to sign you in and to post the results) and Warcraft Logs (to read the guild's public raid reports).</p>
+      <p>Your daily result — your name and the score you got — is posted by the bot into the guild's own Discord channel, along with the group streak. That publication is the point of the game, and that channel is the only place results are published.</p>
+      <p>Nothing is sold, rented, shared with advertisers, or used to train any model. Data is not passed to any third party beyond the two services the game is built on:</p>
+      <ul>
+        <li><strong>Discord</strong> — to sign you in, to check server membership if enabled, and to post the daily scoreboard. Discord's own handling of your data is governed by its <a href="https://discord.com/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</li>
+        <li><strong>Warcraft Logs</strong> — to read the guild's <em>public</em> raid reports. The game authenticates as itself and sends no information about you to Warcraft Logs.</li>
+      </ul>
+      <p>The operator's admins can see the stored files in the course of running the game. We will disclose data otherwise only if required by law.</p>
     </section>
 
     <section class="card">
-      <h2 class="section-title">Where it lives, and for how long</h2>
-      <p>Everything is kept in plain JSON files on the guild's own server. Results are kept so the group streak can be counted; there is no automatic expiry.</p>
-      <p>Ask an admin and your account and results will be deleted. Signing out removes the cookie from your browser; deleting your data removes it from the server.</p>
+      <h2 class="section-title">Where it is stored, and for how long</h2>
+      <p>Everything is kept as plain JSON files on a server controlled by the operator, located in the <strong>United Kingdom</strong>. Access is limited to the operator and to admins they designate; the admin interface is protected by a secret token, and session cookies are signed and, outside local development, marked <code>Secure</code>.</p>
+      <p>Play records are retained for as long as the game runs, because the group streak is counted from them; there is no automatic expiry. If the game is shut down, the stored data is deleted. Your local browser storage lives only in your browser and is not retained by us at all.</p>
+      <p>No system is perfectly secure, and this is a hobby project run on modest infrastructure. Please do not put anything sensitive into it — there is nowhere in the game to type free text, by design.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Your rights and how to use them</h2>
+      <p>You can ask us, at any time, to:</p>
+      <ul>
+        <li>tell you what we hold about you, and give you a copy of it;</li>
+        <li>correct anything that is wrong;</li>
+        <li>delete your account, your stored profile and all of your results;</li>
+        <li>stop processing your data, which in practice means deleting it and you no longer playing.</li>
+      </ul>
+      <p>Email <a href="mailto:dev@durs.pro">dev@durs.pro</a> from an address you can be reached at, or message an admin in the Discord server, telling us your Discord username. Requests are actioned within 30 days and normally much sooner. Deletion is permanent and removes your rows from the results file; scoreboard posts already sent to Discord may still show your name in the channel history — ask and we will delete those messages too where Discord still allows it. Revoking Parsedle's authorisation in Discord (<em>User Settings → Authorized Apps</em>) stops any further data reaching us, but does not by itself delete what is already stored; ask us for that.</p>
+      <p>If you are in the UK, the EEA or Switzerland and you think we have handled your data badly, you may complain to your national data protection authority. If you are a California resident: we do not sell or share personal information as those terms are defined by the CCPA/CPRA, and we do not discriminate against anyone who exercises their rights.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Children</h2>
+      <p>Parsedle is not directed at children. You must be old enough to hold a Discord account under Discord's Terms of Service — at least 13, or the higher minimum age set for your country. We do not knowingly collect data from anyone below that age; if we learn that we have, we delete it. Tell us at <a href="mailto:dev@durs.pro">dev@durs.pro</a> if you believe this has happened.</p>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Changes to this policy</h2>
+      <p>If this policy changes, the date at the top changes with it, and the current version is always at this URL. Material changes are announced in the guild's Discord channel. Continuing to play after a change means you accept the updated policy.</p>
     </section>
 
     <section class="card">
       <h2 class="section-title">Contact</h2>
-      <p>Parsedle is operated by the guild that runs this server. Reach the admins in the Discord server where you found the game.</p>
+      <p>Parsedle is operated by <strong>Jordan Dawson</strong>. Email <a href="mailto:dev@durs.pro">dev@durs.pro</a>, or reach the admins in the Discord server where you found the game.</p>
+      <p>Parsedle is not affiliated with, endorsed by, or sponsored by Discord Inc., Blizzard Entertainment, or Warcraft Logs.</p>
     </section>
   </main>
 
   <footer>
     <p><a href="/">Back to the game</a> · <a href="/terms.html">Terms</a></p>
   </footer>
-</body>
-</html>
+
+</body></html>

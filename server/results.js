@@ -79,6 +79,37 @@ export class ResultStore {
     return { round, added: true };
   }
 
+  /**
+   * Erase every round belonging to one player.
+   *
+   * The privacy policy promises deletion on request, so this exists to make
+   * that a command rather than a hand edit. Days left empty are dropped too,
+   * so no trace of the player's participation remains in the shape of the
+   * file.
+   */
+  async forget(userId) {
+    const days = await this.read();
+    let removed = 0;
+    for (const [dayKey, day] of Object.entries(days)) {
+      if (!(userId in day)) continue;
+      delete day[userId];
+      removed += 1;
+      if (Object.keys(day).length === 0) delete days[dayKey];
+    }
+    if (removed) await this.write(days);
+    return { removed };
+  }
+
+  /** Everything held about one player, for a "what do you have on me" request. */
+  async export(userId) {
+    const days = await this.read();
+    const rounds = {};
+    for (const [dayKey, day] of Object.entries(days)) {
+      if (day[userId]) rounds[dayKey] = day[userId];
+    }
+    return rounds;
+  }
+
   /** Marks a round started before the first guess, so "who is playing" can fire. */
   async startRound({ dayKey, userId, puzzleNumber, now = Date.now() }) {
     const days = await this.read();

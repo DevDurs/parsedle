@@ -161,7 +161,15 @@ bot is editing and which morning it has already posted.
 node server/cli.js digest --dry-run        # print yesterday's post, send nothing
 node server/cli.js digest --now            # post it, even if today's already went
 node server/cli.js results [2026-08-19]    # who played and what they scored
+node server/cli.js player <name|id>        # everything held about one player
+node server/cli.js forget <name|id> --yes  # delete them, profile and results
 ```
+
+`/privacy.html` promises deletion on request, so `forget` is how you keep that
+promise: it removes the profile and every round, and drops any day left empty.
+Without `--yes` it only says what it would do. Scoreboard messages already
+posted to Discord are not ours to edit — delete those in the channel if the
+person asked for that too.
 
 The digest fires at `DISCORD_DIGEST_HOUR` UTC and catches up on boot if the
 container was down at the time — without posting twice.
@@ -291,7 +299,7 @@ A pool of 20-30 raiders is a good game; the fallback kicks in below 6.
 ## Development
 
 ```sh
-npm test                 # 189 assertions, no network
+npm test                 # 196 assertions, no network
 npm start                # serve on :8080 with whatever is in the environment
 node server/cli.js check # what would today's pool be?
 ```

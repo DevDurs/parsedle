@@ -159,3 +159,42 @@ test('an empty history is a zero streak, not a crash', () => {
   assert.deepEqual(scoreboard(undefined), []);
   assert.deepEqual(playing(), []);
 });
+
+test('forgetting a player removes every round they played', async () => {
+  const store = await freshStore();
+  for (const dayKey of ['2026-08-18', '2026-08-19']) {
+    await store.recordGuess({ dayKey, userId: 'gone', guessId: 'a', correct: true, puzzleNumber: 1 });
+    await store.recordGuess({ dayKey, userId: 'stays', guessId: 'b', correct: false, puzzleNumber: 1 });
+  }
+
+  const { removed } = await store.forget('gone');
+  assert.equal(removed, 2);
+  assert.equal(await store.round('2026-08-18', 'gone'), null);
+  assert.ok(await store.round('2026-08-18', 'stays'), 'everyone else is untouched');
+});
+
+test('a day left empty by a deletion is dropped, not left as a husk', async () => {
+  const store = await freshStore();
+  await store.recordGuess({ dayKey: '2026-08-20', userId: 'gone', guessId: 'a', correct: true, puzzleNumber: 1 });
+  await store.forget('gone');
+  assert.deepEqual(await store.read(), {}, 'no trace of having played remains');
+});
+
+test('forgetting somebody who never played is a no-op', async () => {
+  const store = await freshStore();
+  await store.recordGuess({ dayKey: '2026-08-20', userId: 'stays', guessId: 'a', correct: true, puzzleNumber: 1 });
+  assert.deepEqual(await store.forget('nobody'), { removed: 0 });
+  assert.ok(await store.round('2026-08-20', 'stays'));
+});
+
+test('export hands over everything held about one player, and nothing else', async () => {
+  const store = await freshStore();
+  await store.recordGuess({ dayKey: '2026-08-19', userId: 'me', guessId: 'a', correct: true, puzzleNumber: 1 });
+  await store.recordGuess({ dayKey: '2026-08-19', userId: 'other', guessId: 'b', correct: true, puzzleNumber: 1 });
+  await store.recordGuess({ dayKey: '2026-08-20', userId: 'me', guessId: 'c', correct: false, puzzleNumber: 2 });
+
+  const mine = await store.export('me');
+  assert.deepEqual(Object.keys(mine).sort(), ['2026-08-19', '2026-08-20']);
+  assert.equal(JSON.stringify(mine).includes('other'), false);
+  assert.deepEqual(await store.export('never-played'), {});
+});

@@ -133,3 +133,32 @@ test('an unwritten user store reads as empty', async () => {
   assert.deepEqual(await store.read(), {});
   assert.equal(await store.get('nobody'), null);
 });
+
+test('a profile can be deleted, as the privacy policy promises', async () => {
+  const store = await freshStore();
+  await store.upsert(PROFILE);
+  await store.upsert({ ...PROFILE, id: '456', global_name: 'CMRN' });
+
+  assert.deepEqual(await store.forget('123'), { removed: true });
+  assert.equal(await store.get('123'), null);
+  assert.ok(await store.get('456'), 'nobody else is touched');
+  assert.deepEqual(await store.forget('123'), { removed: false }, 'deleting twice is harmless');
+});
+
+test('a player can be found by display name or id, for a deletion request', async () => {
+  const store = await freshStore();
+  await store.upsert(PROFILE);
+  await store.upsert({ ...PROFILE, id: '456', global_name: 'CMRN' });
+
+  assert.deepEqual((await store.findByName('durs')).map((u) => u.id), ['123'], 'global_name');
+  assert.deepEqual((await store.findByName('DURS')).map((u) => u.id), ['123'], 'case does not matter');
+  assert.deepEqual((await store.findByName('123')).map((u) => u.id), ['123'], 'or the raw id');
+  assert.deepEqual(await store.findByName('nobody'), []);
+});
+
+test('two players sharing a name are both returned, so the CLI can refuse to guess', async () => {
+  const store = await freshStore();
+  await store.upsert({ ...PROFILE, id: '1', global_name: 'durs' });
+  await store.upsert({ ...PROFILE, id: '2', global_name: 'Durs' });
+  assert.equal((await store.findByName('durs')).length, 2);
+});

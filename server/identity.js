@@ -60,6 +60,23 @@ export class UserStore {
   async get(id) {
     return (await this.read())[id] ?? null;
   }
+
+  /** Remove a stored profile. Pairs with ResultStore.forget(). */
+  async forget(id) {
+    const users = await this.read();
+    if (!(id in users)) return { removed: false };
+    delete users[id];
+    await this.write(users);
+    return { removed: true };
+  }
+
+  /** Find a player by display name, so deletion requests can name a person. */
+  async findByName(name) {
+    const wanted = String(name).trim().toLowerCase();
+    return Object.values(await this.read()).filter(
+      (user) => user.id === wanted || user.username.toLowerCase() === wanted,
+    );
+  }
 }
 
 /**

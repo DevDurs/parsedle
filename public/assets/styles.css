@@ -424,6 +424,12 @@ footer {
 }
 
 footer a { color: var(--jade); }
+
+/* Prose links — the policy pages are nothing but these. */
+.card p a, .card li a { color: var(--jade); }
+.card p a:hover, .card li a:hover { color: var(--gold); }
+.card ul { padding-left: 1.2rem; }
+.card li { margin: 0.35rem 0; }
 code { background: rgba(8, 18, 15, 0.6); padding: 0.1rem 0.38rem; border-radius: 5px; color: var(--gold); }
 
 #reports-body button, #roster-exclude {

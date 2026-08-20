@@ -136,6 +136,58 @@ async function results(args) {
   }
 }
 
+/** Resolve "durs" or a raw snowflake to exactly one stored player. */
+async function findPlayer(users, needle) {
+  const matches = await users.findByName(needle);
+  if (matches.length === 0) {
+    console.error(`No player matching "${needle}". Try: node server/cli.js results`);
+    process.exitCode = 1;
+    return null;
+  }
+  if (matches.length > 1) {
+    console.error(`"${needle}" matches ${matches.length} players — use the Discord id instead:`);
+    for (const user of matches) console.error(`  ${user.id}  ${user.username}`);
+    process.exitCode = 1;
+    return null;
+  }
+  return matches[0];
+}
+
+/** A subject access request, answered from the shell. */
+async function player(args) {
+  const discord = wireDiscord(config);
+  const user = await findPlayer(discord.users, args[0] ?? '');
+  if (!user) return;
+
+  const rounds = await discord.results.export(user.id);
+  console.log(JSON.stringify({ user, rounds }, null, 2));
+  console.log(`\n${Object.keys(rounds).length} day(s) of results.`);
+}
+
+/**
+ * Deletion, as promised on /privacy.html. Removes the profile and every round;
+ * scoreboard messages already posted to Discord are not ours to edit, and the
+ * policy says as much.
+ */
+async function forget(args) {
+  const discord = wireDiscord(config);
+  const needle = args.find((a) => !a.startsWith('--')) ?? '';
+  const user = await findPlayer(discord.users, needle);
+  if (!user) return;
+
+  if (!args.includes('--yes')) {
+    const rounds = await discord.results.export(user.id);
+    console.log(`Would delete ${user.username} (${user.id}) and ${Object.keys(rounds).length} day(s) of results.`);
+    console.log('Re-run with --yes to do it. This cannot be undone.');
+    return;
+  }
+
+  const { removed } = await discord.results.forget(user.id);
+  const profile = await discord.users.forget(user.id);
+  console.log(`Deleted ${user.username} (${user.id}): ${removed} day(s) of results, profile ${profile.removed ? 'removed' : 'not found'}.`);
+  console.log('Scoreboard posts already in Discord are not touched — delete those in the channel if they asked for that too.');
+}
+
 async function main() {
   switch (command) {
     case 'add': {
@@ -193,11 +245,18 @@ async function main() {
     case 'results':
       await results(args);
       break;
+    case 'player':
+      await player(args);
+      break;
+    case 'forget':
+      await forget(args);
+      break;
     default:
       console.error(`Unknown command: ${command}`);
       console.error(
         'Usage: node server/cli.js [add <url> [label] | remove <code> | list | check | ' +
-          'roster [refresh|add|exclude|forget|import] <name…> | digest [--dry-run|--now] [day] | results [day]]',
+          'roster [refresh|add|exclude|forget|import] <name…> | digest [--dry-run|--now] [day] | ' +
+          'results [day] | player <name|id> | forget <name|id> [--yes]]',
       );
       process.exitCode = 1;
   }
