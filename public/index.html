@@ -13,10 +13,17 @@
     <h1 class="wordmark">Parsedle</h1>
     <p class="tagline">Five guesses, one parse, and the mists give up a little more each time.</p>
     <p class="puzzle-no" id="puzzle-no"></p>
+    <p class="account" id="account"></p>
   </header>
 
   <main>
     <p class="notice" id="notice" role="status" hidden></p>
+
+    <section class="card login-card" id="login" hidden aria-labelledby="login-title">
+      <h2 class="section-title" id="login-title">Sign in</h2>
+      <p id="login-detail">Parsedle keeps the scores, so it needs to know who you are.</p>
+      <p><a class="button-link" href="/auth/discord">Sign in with Discord</a></p>
+    </section>
 
     <section class="card parse-card" aria-labelledby="parse-card-title">
       <h2 id="parse-card-title" class="section-title">Today&rsquo;s parse</h2>

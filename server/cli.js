@@ -15,6 +15,9 @@ import { createRosterProvider, RosterStore } from './roster.js';
 import { createWclClient, WclError } from './wcl.js';
 import { loadConfig } from './config.js';
 import { ReportStore, sortNewestFirst, SAMPLE_SIZE } from './store.js';
+import { previousDayKey, scoreboard } from './results.js';
+import { todayKey } from './digest.js';
+import { wireDiscord } from './wiring.js';
 
 const config = loadConfig();
 const store = new ReportStore(config.reportsFile);
@@ -88,6 +91,51 @@ async function importRoster(code) {
   console.log('Prune anyone who was a pug:  node server/cli.js roster exclude <name>');
 }
 
+/** Yesterday's post, printed or sent. */
+async function digest(args) {
+  const client = makeClient();
+  const pools = createPoolProvider({ store, client, roster: makeRoster(client) });
+  const discord = wireDiscord(config, { pools });
+  for (const warning of discord.warnings) console.warn(`! ${warning}`);
+
+  const dayKey = args.find((a) => /^\d{4}-\d{2}-\d{2}$/.test(a)) ?? previousDayKey(todayKey());
+  const dryRun = args.includes('--dry-run') || !discord.client;
+  const force = args.includes('--now');
+
+  if (!discord.client && !args.includes('--dry-run')) {
+    console.warn('! No bot configured, so this is a dry run.');
+  }
+
+  const message = await discord.announcer.postDigest({ dayKey, dryRun, force });
+  if (!message) {
+    console.log(`Nothing to post for ${dayKey} — nobody finished, or it has already gone out (use --now to repost).`);
+    return;
+  }
+
+  console.log(`--- ${dayKey} ---\n${message.content}`);
+  if (message.embeds) console.log(`\n[${message.embeds[0].fields.length} grid(s) attached]`);
+  console.log(dryRun ? '\n(dry run — nothing was posted)' : '\nPosted.');
+}
+
+/** What a given day looked like. */
+async function results(args) {
+  const discord = wireDiscord(config);
+  const dayKey = args[0] ?? todayKey();
+  const day = await discord.results.day(dayKey);
+  const users = await discord.users.read();
+  const rows = scoreboard(day);
+
+  console.log(`${dayKey}: ${Object.keys(day).length} player(s), ${rows.length} finished`);
+  for (const row of rows) {
+    const name = users[row.userId]?.username ?? row.userId;
+    console.log(`  ${(row.won ? `${row.guesses}/5` : 'X/5').padEnd(4)} ${name}`);
+  }
+  for (const [userId, round] of Object.entries(day)) {
+    if (round.finishedAt) continue;
+    console.log(`  ...  ${users[userId]?.username ?? userId} (still playing, ${round.guessIds.length} guesses)`);
+  }
+}
+
 async function main() {
   switch (command) {
     case 'add': {
@@ -139,10 +187,17 @@ async function main() {
       if (pool.length > 10) console.log(`  … and ${pool.length - 10} more`);
       break;
     }
+    case 'digest':
+      await digest(args);
+      break;
+    case 'results':
+      await results(args);
+      break;
     default:
       console.error(`Unknown command: ${command}`);
       console.error(
-        'Usage: node server/cli.js [add <url> [label] | remove <code> | list | check | roster [refresh|add|exclude|forget] <name…>]',
+        'Usage: node server/cli.js [add <url> [label] | remove <code> | list | check | ' +
+          'roster [refresh|add|exclude|forget|import] <name…> | digest [--dry-run|--now] [day] | results [day]]',
       );
       process.exitCode = 1;
   }

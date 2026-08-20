@@ -8,7 +8,12 @@ import { fileURLToPath } from 'node:url';
 
 import { createApp } from '../server/app.js';
 import { createPoolProvider } from '../server/pool.js';
+import { createAnnouncer } from '../server/digest.js';
+import { createDiscordAuth, UserStore } from '../server/identity.js';
+import { ResultStore } from '../server/results.js';
 import { createRosterProvider, RosterStore } from '../server/roster.js';
+import { createSessions } from '../server/sessions.js';
+import { StateStore } from '../server/state.js';
 import { ReportStore } from '../server/store.js';
 import { makeReport } from './fixtures/report.js';
 
@@ -198,4 +203,197 @@ test('the roster is readable and editable behind the admin token', async (t) => 
     await app.postJson('/api/roster', { forget: ['Thalvira'] }, { 'x-admin-token': ADMIN_TOKEN })
   ).json();
   assert.deepEqual(forgotten.members.sort(), ['newtrial', 'thalvira']);
+});
+
+/* ------------------------------------------------- the Discord half, wired */
+
+/** A server with login on, backed by a fake Discord. */
+async function startWithDiscord(t, { member = true, client = fakeDiscordClient() } = {}) {
+  const dir = await mkdtemp(join(tmpdir(), 'parsedle-discord-'));
+  const store = new ReportStore(join(dir, 'reports.json'));
+  const pools = createPoolProvider({ store, client: null });
+  const sessions = createSessions({ secret: 'test-secret' });
+  const users = new UserStore(join(dir, 'users.json'));
+  const results = new ResultStore(join(dir, 'results.json'));
+  const state = new StateStore(join(dir, 'discord.json'));
+
+  const auth = createDiscordAuth({
+    clientId: 'app',
+    clientSecret: 'secret',
+    redirectUri: 'https://parsedle.test/auth/discord/callback',
+    guildId: '999',
+    requireGuildMember: !member,
+    fetchImpl: async (url) => {
+      if (url.includes('/oauth2/token')) return { ok: true, status: 200, json: async () => ({ access_token: 'tok' }) };
+      if (url.endsWith('/users/@me')) {
+        return { ok: true, status: 200, json: async () => ({ id: 'u1', username: 'durs', avatar: null }) };
+      }
+      return { ok: false, status: 404, json: async () => ({}) };
+    },
+  });
+
+  const announcer = createAnnouncer({ client, results, users, state, pools, playUrl: 'https://parsedle.test' });
+  const server = createServer(
+    createApp({
+      store,
+      pools,
+      adminToken: ADMIN_TOKEN,
+      staticRoot: join(repoRoot, 'public'),
+      mounts: { '/lib': join(repoRoot, 'src/lib') },
+      sessions,
+      auth,
+      users,
+      results,
+      announcer,
+      secureCookies: false,
+    }),
+  );
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  t.after(() => new Promise((done) => server.close(done)));
+
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const token = sessions.issue({ id: 'u1', username: 'durs' });
+  return {
+    base,
+    results,
+    state,
+    client,
+    sessions,
+    token,
+    get: (path, headers = {}) => fetch(base + path, { headers, redirect: 'manual' }),
+    guess: (guessId, headers = {}) =>
+      fetch(`${base}/api/guess`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ guessId }),
+      }),
+  };
+}
+
+function fakeDiscordClient() {
+  const posted = [];
+  const edited = [];
+  return {
+    posted,
+    edited,
+    async postMessage(m) {
+      posted.push(m);
+      return { id: `m${posted.length}` };
+    },
+    async editMessage(id, m) {
+      edited.push({ id, message: m });
+      return { id };
+    },
+  };
+}
+
+test('with login on, the puzzle is closed to strangers', async (t) => {
+  const app = await startWithDiscord(t);
+  const res = await app.get('/api/puzzle');
+  assert.equal(res.status, 401);
+  assert.equal((await res.json()).login, '/auth/discord');
+});
+
+test('a session opens it, by cookie or by bearer', async (t) => {
+  const app = await startWithDiscord(t);
+  assert.equal((await app.get('/api/puzzle', { cookie: `parsedle_session=${app.token}` })).status, 200);
+
+  const res = await app.get('/api/puzzle', { authorization: `Bearer ${app.token}` });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).player.username, 'durs');
+});
+
+test('the login redirect carries a state cookie, and the callback checks it', async (t) => {
+  const app = await startWithDiscord(t);
+  const start = await app.get('/auth/discord');
+  assert.equal(start.status, 302);
+  assert.match(start.headers.get('location'), /^https:\/\/discord\.com\/oauth2\/authorize\?/);
+
+  const state = /parsedle_oauth_state=([^;]+)/.exec(start.headers.get('set-cookie'))[1];
+  assert.equal((await app.get(`/auth/discord/callback?code=c&state=${state}`)).status, 400, 'no cookie sent back');
+
+  const forged = await app.get('/auth/discord/callback?code=c&state=not-the-one', {
+    cookie: `parsedle_oauth_state=${state}`,
+  });
+  assert.equal(forged.status, 400, 'a mismatched state is refused');
+
+  const ok = await app.get(`/auth/discord/callback?code=c&state=${state}`, {
+    cookie: `parsedle_oauth_state=${state}`,
+  });
+  assert.equal(ok.status, 302);
+  assert.match(String(ok.headers.get('set-cookie')), /parsedle_session=/);
+});
+
+test('guesses are stored against the player, not the browser', async (t) => {
+  const app = await startWithDiscord(t);
+  const auth = { authorization: `Bearer ${app.token}` };
+  const { roster } = await (await app.get('/api/puzzle', auth)).json();
+
+  await app.guess(roster[0].id, auth);
+  await app.guess(roster[1].id, auth);
+
+  // A "fresh browser" — no local state at all — still sees the round.
+  const view = await (await app.get('/api/puzzle', auth)).json();
+  assert.equal(view.guesses.length, 2, 'clearing localStorage does not undo a round');
+
+  const round = await app.results.round(view.dayKey, 'u1');
+  assert.deepEqual(round.guessIds, [roster[0].id, roster[1].id]);
+});
+
+test('a round cannot be replayed past its end', async (t) => {
+  const app = await startWithDiscord(t);
+  const auth = { authorization: `Bearer ${app.token}` };
+  const { roster, dayKey } = await (await app.get('/api/puzzle', auth)).json();
+
+  for (const entry of roster.slice(0, 5)) await app.guess(entry.id, auth);
+  const sixth = await (await app.guess(roster[5].id, auth)).json();
+
+  assert.equal(sixth.guesses.length, 5, 'the sixth guess is refused');
+  assert.equal((await app.results.round(dayKey, 'u1')).guessIds.length, 5);
+});
+
+test('the first guess of the day announces the player, the rest do not', async (t) => {
+  const app = await startWithDiscord(t);
+  const auth = { authorization: `Bearer ${app.token}` };
+  const { roster } = await (await app.get('/api/puzzle', auth)).json();
+
+  await app.guess(roster[0].id, auth);
+  assert.equal(app.client.posted.length, 1);
+  assert.match(app.client.posted[0].content, /is playing Parsedle #/);
+
+  await app.guess(roster[1].id, auth);
+  assert.equal(app.client.posted.length, 1, 'one notification per day');
+  assert.equal(app.client.edited.length, 0, 'and no pointless edits');
+});
+
+test('the Activity trades its code for a token and a session', async (t) => {
+  const app = await startWithDiscord(t);
+  const res = await fetch(`${app.base}/api/activity/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code: 'sdk-code' }),
+  });
+  assert.equal(res.status, 200);
+
+  const body = await res.json();
+  assert.equal(body.access_token, 'tok', 'the SDK needs Discord’s token for authenticate()');
+  assert.equal(app.sessions.verify(body.session).id, 'u1', 'and we need our own');
+
+  const view = await app.get('/api/puzzle', { authorization: `Bearer ${body.session}` });
+  assert.equal(view.status, 200);
+});
+
+test('/api/me reports who is signed in', async (t) => {
+  const app = await startWithDiscord(t);
+  assert.deepEqual(await (await app.get('/api/me')).json(), { player: null, loginRequired: true });
+  const mine = await (await app.get('/api/me', { authorization: `Bearer ${app.token}` })).json();
+  assert.equal(mine.player.username, 'durs');
+});
+
+test('without Discord configured the game stays open and anonymous', async (t) => {
+  const app = await startServer(t);
+  const body = await (await app.get('/api/puzzle')).json();
+  assert.equal(body.loginRequired, false);
+  assert.equal(body.player, null);
+  assert.equal((await app.get('/auth/discord')).status, 503);
 });

@@ -12,6 +12,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 
 import { buildPuzzleView } from './puzzle.js';
+import { COOKIE_NAME, STATE_COOKIE_NAME, clearCookieHeader, cookieHeader, newState, parseCookies } from './sessions.js';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -63,7 +64,23 @@ function tokenMatches(expected, provided) {
 /**
  * @param {{store: import('./store.js').ReportStore, pools: ReturnType<typeof import('./pool.js').createPoolProvider>, adminToken?: string, staticRoot: string, now?: () => number}} deps
  */
-export function createApp({ store, pools, roster = null, adminToken = '', staticRoot, mounts = {}, now = Date.now }) {
+export function createApp({
+  store,
+  pools,
+  roster = null,
+  adminToken = '',
+  staticRoot,
+  mounts = {},
+  // The Discord half. All optional: without it the game still plays, it just
+  // has nobody's name on it.
+  sessions = null,
+  auth = null,
+  users = null,
+  results = null,
+  announcer = null,
+  secureCookies = true,
+  now = Date.now,
+}) {
   const root = resolve(staticRoot);
   // Extra read-only trees grafted into the URL space — /lib serves the shared
   // rule modules the page imports, without exposing the whole repo.
@@ -120,11 +137,164 @@ export function createApp({ store, pools, roster = null, adminToken = '', static
     return true;
   }
 
-  /** GET /api/puzzle and POST /api/guess share one view. */
-  async function handlePuzzle(req, res, session) {
+  /**
+   * The login round trip, plus the Activity's version of it.
+   *
+   * Returns true when it handled the request, so the router can fall through
+   * to static files when Discord is not configured.
+   */
+  async function handleAuth(req, res, url, pathname) {
+    if (!auth || !sessions || !users) {
+      if (pathname === '/auth/discord') {
+        sendJson(res, 503, { error: 'Discord login is not configured on this server.' });
+        return true;
+      }
+      return false;
+    }
+
+    if (pathname === '/auth/discord' && req.method === 'GET') {
+      const state = newState();
+      res.writeHead(302, {
+        Location: auth.authorizeUrl(state),
+        // Five minutes is more than enough to click "Authorize".
+        'Set-Cookie': cookieHeader(STATE_COOKIE_NAME, state, { maxAgeMs: 5 * 60 * 1000, secure: secureCookies }),
+      });
+      res.end();
+      return true;
+    }
+
+    if (pathname === '/auth/discord/callback' && req.method === 'GET') {
+      const code = url.searchParams.get('code');
+      const state = url.searchParams.get('state');
+      const expected = parseCookies(req.headers.cookie)[STATE_COOKIE_NAME];
+
+      // No state, no login: this is the only thing standing between us and a
+      // login-CSRF that silently attributes someone's scores to another account.
+      if (!code || !state || !expected || state !== expected) {
+        sendJson(res, 400, { error: 'That login attempt did not check out. Try again from the start.' });
+        return true;
+      }
+
+      try {
+        const { profile } = await auth.login(code);
+        const user = await users.upsert(profile, { now });
+        res.writeHead(302, {
+          Location: '/',
+          'Set-Cookie': [
+            cookieHeader(COOKIE_NAME, sessions.issue(user), { maxAgeMs: sessions.ttlMs, secure: secureCookies }),
+            clearCookieHeader(STATE_COOKIE_NAME, { secure: secureCookies }),
+          ],
+        });
+        res.end();
+      } catch (err) {
+        sendJson(res, err.status === 403 ? 403 : 502, { error: err.message });
+      }
+      return true;
+    }
+
+    if (pathname === '/auth/logout' && req.method === 'POST') {
+      res.writeHead(302, { Location: '/', 'Set-Cookie': clearCookieHeader(COOKIE_NAME, { secure: secureCookies }) });
+      res.end();
+      return true;
+    }
+
+    // The Activity's login: the SDK hands the page a code, the page hands it
+    // here, and we hand back both Discord's token (which authenticate() wants)
+    // and our own session (which every later request wants).
+    if (pathname === '/api/activity/token' && req.method === 'POST') {
+      const body = await readJsonBody(req);
+      if (!body.code) {
+        sendJson(res, 400, { error: 'No code supplied' });
+        return true;
+      }
+      try {
+        const { token, profile } = await auth.login(String(body.code), { withRedirect: false });
+        const user = await users.upsert(profile, { now });
+        sendJson(res, 200, { access_token: token.access_token, session: sessions.issue(user), user });
+      } catch (err) {
+        sendJson(res, err.status === 403 ? 403 : 502, { error: err.message });
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  /** The signed-in player, or null when the game is running open. */
+  function playerOf(req) {
+    return sessions ? sessions.fromRequest(req) : null;
+  }
+
+  /**
+   * Login is only enforced once Discord is configured. A deployment without
+   * it — the default `docker compose up` — stays anonymous and playable.
+   */
+  function requirePlayer(req, res) {
+    if (!sessions) return { id: null, username: null };
+    const player = playerOf(req);
+    if (!player) {
+      sendJson(res, 401, { error: 'Sign in with Discord to play.', login: '/auth/discord' });
+      return null;
+    }
+    return player;
+  }
+
+  /**
+   * The view a player is entitled to.
+   *
+   * With results stored server-side the guess list comes from the store, not
+   * from the browser: clearing localStorage no longer undoes a loss.
+   */
+  async function handlePuzzle(req, res, player, { extraGuessId = null, clientState = null } = {}) {
     const { pool, sources, sample, warnings } = await pools.getPool();
-    const view = buildPuzzleView(pool, { ...session, now: now() });
-    sendJson(res, 200, { ...view, sources, sample, warnings });
+    const preview = buildPuzzleView(pool, { now: now() });
+    const dayKey = preview.dayKey;
+
+    // Without Discord there is nobody to store a round against, so the browser
+    // keeps its own progress exactly as it used to. That keeps a bare
+    // `docker compose up` playable.
+    let guessIds = clientState?.guessIds ?? [];
+    let startedAt = clientState?.startedAt ?? now();
+
+    if (results && player?.id) {
+      const { round } = await results.startRound({
+        dayKey,
+        userId: player.id,
+        puzzleNumber: preview.puzzleNumber,
+        now: now(),
+      });
+      startedAt = Date.parse(round.startedAt);
+      guessIds = round.guessIds;
+
+      if (extraGuessId) {
+        // Score it against the answer before it is written down, so the store
+        // never holds a guess the rules would have refused.
+        const scored = buildPuzzleView(pool, { guessIds: [...guessIds, extraGuessId], startedAt, now: now() });
+        const landed = scored.guesses.at(-1);
+        if (landed?.parse.id === extraGuessId) {
+          const { round: updated, added } = await results.recordGuess({
+            dayKey,
+            userId: player.id,
+            guessId: extraGuessId,
+            correct: landed.correct,
+            puzzleNumber: preview.puzzleNumber,
+            now: now(),
+          });
+          guessIds = updated.guessIds;
+          if (added && announcer) await announcer.onGuess({ dayKey, player, round: updated, view: scored });
+        }
+      }
+    }
+
+    const view = buildPuzzleView(pool, { guessIds, startedAt, now: now() });
+    sendJson(res, 200, {
+      ...view,
+      sources,
+      sample,
+      warnings,
+      player: player?.id ? { id: player.id, username: player.username, avatar: player.avatar ?? null } : null,
+      loginRequired: Boolean(sessions),
+    });
   }
 
   return async function handler(req, res) {
@@ -138,18 +308,36 @@ export function createApp({ store, pools, roster = null, adminToken = '', static
       }
 
       if (pathname === '/api/puzzle' && req.method === 'GET') {
-        await handlePuzzle(req, res, {
-          guessIds: [],
-          startedAt: Number(url.searchParams.get('startedAt')) || now(),
+        const player = requirePlayer(req, res);
+        if (!player) return;
+        await handlePuzzle(req, res, player, {
+          clientState: { guessIds: [], startedAt: Number(url.searchParams.get('startedAt')) || now() },
         });
         return;
       }
 
       if (pathname === '/api/guess' && req.method === 'POST') {
+        const player = requirePlayer(req, res);
+        if (!player) return;
         const body = await readJsonBody(req);
-        const guessIds = Array.isArray(body.guessIds) ? body.guessIds.slice(0, 20).map(String) : [];
-        await handlePuzzle(req, res, { guessIds, startedAt: Number(body.startedAt) || now() });
+        await handlePuzzle(req, res, player, {
+          extraGuessId: body.guessId ? String(body.guessId) : null,
+          clientState: {
+            guessIds: Array.isArray(body.guessIds) ? body.guessIds.slice(0, 20).map(String) : [],
+            startedAt: Number(body.startedAt) || now(),
+          },
+        });
         return;
+      }
+
+      if (pathname === '/api/me' && req.method === 'GET') {
+        const player = playerOf(req);
+        sendJson(res, 200, { player: player ? { id: player.id, username: player.username } : null, loginRequired: Boolean(sessions) });
+        return;
+      }
+
+      if (pathname.startsWith('/auth/') || pathname === '/api/activity/token') {
+        if (await handleAuth(req, res, url, pathname)) return;
       }
 
       if (pathname === '/api/reports') {

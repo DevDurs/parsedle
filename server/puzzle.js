@@ -81,6 +81,16 @@ export function buildPuzzleView(pool, { guessIds = [], startedAt = null, now = D
 }
 
 /**
+ * The answer for a given day, straight out.
+ *
+ * Only for callers entitled to it — the digest naming *yesterday's* parse —
+ * never for anything a player can reach mid-round.
+ */
+export function answerFor(pool, date) {
+  return publicParse(pickDaily(pool, date));
+}
+
+/**
  * Everything about a parse that is safe to show once it is on the board.
  *
  * Roles are relabelled here rather than in the page: the board prints these

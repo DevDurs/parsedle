@@ -10,8 +10,7 @@
  *   members = (Warcraft Logs roster ∪ include) \ exclude
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readJson, writeJson } from './json-store.js';
 
 /** The site roster changes rarely; re-reading it hourly is plenty. */
 export const ROSTER_TTL_MS = 6 * 60 * 60 * 1000;
@@ -34,24 +33,15 @@ export class RosterStore {
   }
 
   async read() {
-    try {
-      const parsed = JSON.parse(await readFile(this.file, 'utf8'));
-      return {
-        include: Array.isArray(parsed?.include) ? parsed.include : [],
-        exclude: Array.isArray(parsed?.exclude) ? parsed.exclude : [],
-      };
-    } catch (err) {
-      if (err.code === 'ENOENT') return { include: [], exclude: [] };
-      throw err;
-    }
+    const saved = await readJson(this.file, {});
+    return {
+      include: Array.isArray(saved?.include) ? saved.include : [],
+      exclude: Array.isArray(saved?.exclude) ? saved.exclude : [],
+    };
   }
 
   async write(overrides) {
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = join(dirname(this.file), `.roster.${process.pid}.tmp`);
-    await writeFile(tmp, `${JSON.stringify(overrides, null, 2)}\n`);
-    await rename(tmp, this.file);
-    return overrides;
+    return writeJson(this.file, overrides, { name: 'roster' });
   }
 
   /**

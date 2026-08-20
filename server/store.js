@@ -5,9 +5,7 @@
  * You add a report a week; the game samples the newest two.
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-
+import { readJson, writeJson } from './json-store.js';
 import { parseReportCode } from './transform.js';
 
 /** How many reports each puzzle is drawn from. */
@@ -20,22 +18,12 @@ export class ReportStore {
   }
 
   async read() {
-    try {
-      const raw = await readFile(this.file, 'utf8');
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed?.reports) ? parsed.reports : [];
-    } catch (err) {
-      if (err.code === 'ENOENT') return [];
-      throw err;
-    }
+    const saved = await readJson(this.file, { reports: [] });
+    return Array.isArray(saved?.reports) ? saved.reports : [];
   }
 
-  /** Written via a temp file and rename so a crash cannot truncate the list. */
   async write(reports) {
-    await mkdir(dirname(this.file), { recursive: true });
-    const tmp = join(dirname(this.file), `.reports.${process.pid}.tmp`);
-    await writeFile(tmp, `${JSON.stringify({ reports }, null, 2)}\n`);
-    await rename(tmp, this.file);
+    await writeJson(this.file, { reports }, { name: 'reports' });
     return reports;
   }
 

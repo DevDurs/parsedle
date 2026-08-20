@@ -17,6 +17,8 @@ const PROGRESS_KEY = 'parsedle:progress';
 const state = {
   /** @type {?object} the latest server view */
   view: null,
+  /** Set only inside the Discord Activity. */
+  bearer: null,
   guessIds: [],
   startedAt: Date.now(),
   roster: [],
@@ -55,14 +57,59 @@ function persistProgress() {
   }
 }
 
+/* --------------------------------------------------------------- identity */
+
+/** The Activity has no cookie to send, so it carries a bearer token instead. */
+function authHeader() {
+  return state.bearer ? { Authorization: `Bearer ${state.bearer}` } : {};
+}
+
+function showLogin(detail = {}) {
+  $('login').hidden = false;
+  for (const id of ['parse-card-title', 'guess-title', 'board-title']) {
+    $(id)?.closest('.card')?.setAttribute('hidden', '');
+  }
+  if (detail.error) $('login-detail').textContent = detail.error;
+}
+
+function renderAccount() {
+  const { player, loginRequired } = state.view;
+  if (!loginRequired) {
+    $('account').textContent = '';
+    return;
+  }
+  $('account').innerHTML = player
+    ? `Signed in as <strong>${escapeHtml(player.username)}</strong> · <a href="#" id="logout">sign out</a>`
+    : '';
+  $('logout')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/auth/logout';
+    document.body.append(form);
+    form.submit();
+  });
+}
+
 /* ------------------------------------------------------------------ fetch */
 
-async function refresh() {
+async function refresh({ guessId = null } = {}) {
   const res = await fetch('/api/guess', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ guessIds: state.guessIds, startedAt: state.startedAt }),
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body: JSON.stringify({
+      // `guessId` is what a logged-in round appends server-side; `guessIds` is
+      // the anonymous fallback, where the browser still owns its progress.
+      guessId,
+      guessIds: state.guessIds,
+      startedAt: state.startedAt,
+    }),
   });
+
+  if (res.status === 401) {
+    showLogin(await res.json().catch(() => ({})));
+    return null;
+  }
   if (!res.ok) throw new Error(`Server said ${res.status}`);
   const view = await res.json();
 
@@ -73,6 +120,7 @@ async function refresh() {
   state.roster = view.roster;
   state.countdownMs = view.msUntilNextPuzzle;
 
+  $('login').hidden = true;
   persistProgress();
   renderAll();
   scheduleHintRefresh();
@@ -85,6 +133,13 @@ function scheduleHintRefresh() {
   const wait = state.view?.msUntilNextHint;
   if (typeof wait !== 'number') return;
   state.hintTimer = setTimeout(() => refresh().catch(showError), Math.max(1000, wait + 500));
+}
+
+/** Bootstrapping differs inside Discord; see boot() at the bottom. */
+export async function start({ bearer = null } = {}) {
+  state.bearer = bearer;
+  restoreProgress();
+  await refresh().catch(showError);
 }
 
 /* ----------------------------------------------------------------- render */
@@ -221,6 +276,7 @@ function renderCountdown() {
 
 function renderAll() {
   renderHeader();
+  renderAccount();
   renderClue();
   renderHints();
   renderBoard();
@@ -304,8 +360,8 @@ async function submitGuess(entry) {
   $('message').textContent = '';
 
   try {
-    const view = await refresh();
-    if (view.status === 'playing') $('message').textContent = 'A hint just opened up.';
+    const view = await refresh({ guessId: entry.id });
+    if (view?.status === 'playing') $('message').textContent = 'A hint just opened up.';
   } catch (err) {
     state.guessIds = state.guessIds.filter((id) => id !== entry.id);
     showError(err);
@@ -376,8 +432,9 @@ $('share-btn').addEventListener('click', async () => {
 
 /* ------------------------------------------------------------------- boot */
 
-restoreProgress();
-refresh().catch(showError);
+// Inside Discord the Activity bootstrap calls start() itself, once it has a
+// session; on the open web we start straight away.
+if (!new URLSearchParams(location.search).has('frame_id')) start();
 
 setInterval(() => {
   if (!state.view) return;

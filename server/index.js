@@ -10,7 +10,9 @@ import { createPoolProvider } from './pool.js';
 import { createWclClient, WclError } from './wcl.js';
 import { loadConfig } from './config.js';
 import { createRosterProvider, RosterStore } from './roster.js';
+import { scheduleDigest } from './digest.js';
 import { ReportStore } from './store.js';
+import { wireDiscord } from './wiring.js';
 
 const config = loadConfig();
 const store = new ReportStore(config.reportsFile);
@@ -29,6 +31,9 @@ const roster = createRosterProvider({
   guild: config.guild,
 });
 const pools = createPoolProvider({ store, client, roster });
+const discord = wireDiscord(config, { pools });
+for (const warning of discord.warnings) console.warn(`[parsedle] ${warning}`);
+
 const server = createServer(
   createApp({
     store,
@@ -37,6 +42,13 @@ const server = createServer(
     adminToken: config.adminToken,
     staticRoot: config.staticRoot,
     mounts: config.mounts,
+    sessions: discord.sessions,
+    auth: discord.auth,
+    users: discord.users,
+    results: discord.results,
+    announcer: discord.announcer,
+    secureCookies: config.secureCookies,
+    activity: { clientId: config.discord.clientId },
   }),
 );
 
@@ -45,6 +57,17 @@ server.listen(config.port, config.host, async () => {
   console.log(`[parsedle] reports file: ${config.reportsFile}`);
   if (!config.adminToken) console.warn('[parsedle] ADMIN_TOKEN is unset — the admin API is disabled.');
   console.log(`[parsedle] guild: ${config.guild.name}${config.guild.server ? ` — ${config.guild.server} (${config.guild.region})` : ''}`);
+  console.log(
+    discord.sessions
+      ? `[parsedle] Discord login on${config.discord.requireGuildMember ? ' (server members only)' : ''}`
+      : '[parsedle] Discord login off — anyone with the URL can play, anonymously',
+  );
+
+  // The digest catches up on boot if the container was down at its hour.
+  if (discord.client) {
+    console.log(`[parsedle] posting to channel ${config.discord.channelId}, digest at ${config.discord.digestHour}:00 UTC`);
+    scheduleDigest({ announcer: discord.announcer, hour: config.discord.digestHour }).start();
+  }
 
   // Warm the pool so the first player does not pay for the WCL round trip.
   try {
